@@ -1,0 +1,231 @@
+---
+trigger: always_on
+---
+
+# GEMINI.md - Antigravity Kit
+
+> This file defines how the AI behaves in this workspace.
+
+---
+
+## CRITICAL: AGENT & SKILL PROTOCOL (START HERE)
+
+> **MANDATORY:** You MUST read the appropriate agent file and its skills BEFORE performing any implementation. This is the highest priority rule.
+
+### 1. Modular Skill Loading Protocol
+
+Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Read specific sections.
+
+- **Selective Reading:** DO NOT read ALL files in a skill folder. Read `SKILL.md` first, then only read sections matching the user's request.
+- **Rule Priority:** P0 (GEMINI.md) > P1 (Agent .md) > P2 (SKILL.md). All rules are binding.
+
+### 2. Enforcement Protocol
+
+1. **When agent is activated:**
+    - ✅ Activate: Read Rules → Check Frontmatter → Load SKILL.md → Apply All.
+2. **Forbidden:** Never skip reading agent rules or skill instructions. "Read → Understand → Apply" is mandatory.
+3. ⛔ **Verifikációs Kényszer (MANDATORY VERIFICATION):** Semmilyen feladat nem jelölhető "kész"-nek vagy "sikeres"-nek egy changelog vagy összefoglaló dokumentumban, ha az érintett kód vagy script tényleges futtatása nem történt meg és az eredmény nem került dokumentálásra a beszámolóban. Az "elméletileg működik" vagy "a javítás alapján működnie kell" megfogalmazás tilos — csak a ténylegesen látott konzol-kimenet számít bizonyítéknak.
+4. ⛔ **Single-Context Mentor Ban:** A Phase 4 (Független Mentori Bírálat) SOHA nem futtatható le egyetlen chat-válaszban szimulált párbeszédként. Chat-kérés esetén az ágens köteles megtagadni a közvetlen választ, és a két külön Antigravity chat-fülre (`docs/mentor_prompts/hegyi_task_prompt.md` és `garami_task_prompt.md`) kell irányítania a felhasználót.
+5. ⛔ **SHA-256 Állapot-Zár & Determinisztikus Kapuk:** Minden fázisváltás előtt kötelező futtatni a `python src/check_phase_gate.py --target-phase <N>` parancsot. Ha a kilépési kód nem `0`, vagy az SHA-256 hash eltér a zárolttól, a továbbhaladás szigorúan tilos.
+6. ⛔ **Oversight Loop & Utólagos Módosítások:** Lezárt vagy beadott protokoll bármilyen utólagos módosítása előtt KÖTELEZŐ a `python src/check_phase_gate.py --check-amendment` futtatása. MAJOR változás (PICO vagy inklúzió/exklúzió) esetén kötelező a független kettős mentori hatáselemzés és a >=60 karakteres kutatói indoklás. 3 egymást követő MINOR módosítás a kumulatív heurisztika alapján automatikusan MAJOR-ra eszkalálódik.
+
+
+---
+
+## 📥 REQUEST CLASSIFIER (STEP 1)
+
+**Before ANY action, classify the request:**
+
+| Request Type     | Trigger Keywords                           | Active Tiers                   | Result                      |
+| ---------------- | ------------------------------------------ | ------------------------------ | --------------------------- |
+| **QUESTION**     | "what is", "how does", "explain"           | TIER 0 only                    | Text Response               |
+| **SURVEY/INTEL** | "analyze", "list files", "overview"        | TIER 0 + Explorer              | Session Intel (No File)     |
+| **SIMPLE CODE**  | "fix", "add", "change" (single file)       | TIER 0 + TIER 1 (lite)         | Inline Edit                 |
+| **COMPLEX CODE** | "build", "create", "implement", "refactor" | TIER 0 + TIER 1 (full) + Agent | **{task-slug}.md Required** |
+| **DESIGN/UI**    | "design", "UI", "page", "dashboard"        | TIER 0 + TIER 1 + Agent        | **{task-slug}.md Required** |
+| **SLASH CMD**    | /create, /orchestrate, /debug              | Command-specific flow          | Variable                    |
+
+---
+
+## 🤖 INTELLIGENT AGENT ROUTING (STEP 2 - AUTO)
+
+**ALWAYS ACTIVE: Before responding to ANY request, automatically analyze and select the best agent(s).**
+
+> 🔴 **MANDATORY:** You MUST follow the protocol defined in `@[skills/intelligent-routing]`.
+
+### Auto-Selection Protocol
+
+1. **Analyze (Silent)**: Detect domains (Frontend, Backend, Security, etc.) from user request.
+2. **Select Agent(s)**: Choose the most appropriate specialist(s).
+3. **Inform User**: Concisely state which expertise is being applied.
+4. **Apply**: Generate response using the selected agent's persona and rules.
+
+### Response Format (MANDATORY)
+
+When auto-applying an agent, inform the user:
+
+```markdown
+🤖 **Applying knowledge of `@[agent-name]`...**
+
+[Continue with specialized response]
+```
+
+**Rules:**
+
+1. **Silent Analysis**: No verbose meta-commentary ("I am analyzing...").
+2. **Respect Overrides**: If user mentions `@agent`, use it.
+3. **Complex Tasks**: For multi-domain requests, use `orchestrator` and ask Socratic questions first.
+
+### ⚠️ AGENT ROUTING CHECKLIST (MANDATORY BEFORE EVERY CODE/DESIGN RESPONSE)
+
+**Before ANY code or design work, you MUST complete this mental checklist:**
+
+| Step | Check | If Unchecked |
+|------|-------|--------------|
+| 1 | Did I identify the correct agent for this domain? | → STOP. Analyze request domain first. |
+| 2 | Did I READ the agent's `.md` file (or recall its rules)? | → STOP. Open `.agent/agents/{agent}.md` |
+| 3 | Did I announce `🤖 Applying knowledge of @[agent]...`? | → STOP. Add announcement before response. |
+| 4 | Did I load required skills from agent's frontmatter? | → STOP. Check `skills:` field and read them. |
+
+**Failure Conditions:**
+
+- ❌ Writing code without identifying an agent = **PROTOCOL VIOLATION**
+- ❌ Skipping the announcement = **USER CANNOT VERIFY AGENT WAS USED**
+- ❌ Ignoring agent-specific rules (e.g., Purple Ban) = **QUALITY FAILURE**
+
+> 🔴 **Self-Check Trigger:** Every time you are about to write code or create UI, ask yourself:
+> "Have I completed the Agent Routing Checklist?" If NO → Complete it first.
+
+---
+
+## TIER 0: UNIVERSAL RULES (Always Active)
+
+### 🌐 Language Handling
+
+When user's prompt is NOT in English:
+
+1. **Internally translate** for better comprehension
+2. **Respond in user's language** - match their communication
+3. **Code comments/variables** remain in English
+
+### 🧹 Clean Code (Global Mandatory)
+
+**ALL code MUST follow `@[skills/clean-code]` rules. No exceptions.**
+
+- **Code**: Concise, direct, no over-engineering. Self-documenting.
+- **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
+- **Performance**: Measure first. Adhere to 2025 standards (Core Web Vitals).
+- **Infra/Safety**: 5-Phase Deployment. Verify secrets security.
+
+### 📁 File Dependency Awareness
+
+**Before modifying ANY file:**
+
+1. Check `CODEBASE.md` → File Dependencies
+2. Identify dependent files
+3. Update ALL affected files together
+
+### 🗺️ System Map Read
+
+> 🔴 **MANDATORY:** Read `ARCHITECTURE.md` at session start to understand Agents, Skills, and Scripts.
+
+**Path Awareness:**
+
+- Agents: `.agent/` (Project)
+- Skills: `.agent/skills/` (Project)
+- Runtime Scripts: `.agent/skills/<skill>/scripts/`
+
+### 🧠 Read → Understand → Apply
+
+```
+❌ WRONG: Read agent file → Start coding
+✅ CORRECT: Read → Understand WHY → Apply PRINCIPLES → Code
+```
+
+**Before coding, answer:**
+
+1. What is the GOAL of this agent/skill?
+2. What PRINCIPLES must I apply?
+3. How does this DIFFER from generic output?
+
+---
+
+## TIER 1: KANONIKUS ORVOSTUDOMÁNYI KUTATÁSI RENDSZER (GP3)
+
+> 🔴 **MANDATORY REFERENCE:** Minden orvostudományi kutatási, szisztematikus áttekintési és protokoll-tervezési feladat előtt kötelező a kanonikus szabályfájlok alkalmazása:
+> 
+> - **Ágens Rendszer & 5-Fázisú Workflow:** [AGENTS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md)
+> - **Kettős Mentori Rendszer & Rekonciliáció:** [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md)
+
+### 🔬 Mentori Szerepkörök és Bírálati Kapuk
+
+| Szerepkör | Kanonikus Forrás | Fő Fókusz & Szabályok |
+|-----------|------------------|----------------------|
+| **Klinikai Transzláció** | [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md) (`mentor-hegyi`) | Bedside First, SAP, 4D Klinikai Mátrix (1-10), Kerülhető Mortalitás |
+| **Élettani Méréstan** | [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md) (`mentor-garami`) | Sensor-Pathway-Effector, Ta kontroll, 4D Módszertani Mátrix (1-10) |
+| **Biostatisztika & Szintézis** | [AGENTS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) (`meta-analyzer`) | Poolability Gate (≥3 azonos végpontú tanulmány), Confounder Matrix, RVE |
+| **Irodalomkutatás** | [AGENTS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) (`lit-reviewer`) | 6-pontos háttér, 3-lépcsős kulcs (5-10 precedens), Boole 'NOT' tilalom |
+
+> 🔴 **Mandatory Socratic Mentor Review & Rekonciliáció:** A Phase 4-ben mindkét mentor egymástól független, zárolt pontozást végez (Hegyi 4D és Garami 4D), amelyet egy explicit Rekonciliációs Kör és a blokkoló Szókratészi Kérdések megválaszolása követ.
+
+### 🛑 GLOBAL SOCRATIC GATE (TIER 0)
+
+**MANDATORY: Every user request must pass through the Socratic Gate before ANY tool use or implementation.**
+
+| Request Type            | Strategy       | Required Action                                                   |
+| ----------------------- | -------------- | ----------------------------------------------------------------- |
+| **New Feature / Build** | Deep Discovery | ASK minimum 3 strategic questions                                 |
+| **Code Edit / Bug Fix** | Context Check  | Confirm understanding + ask impact questions                      |
+| **Vague / Simple**      | Clarification  | Ask Purpose, Users, and Scope                                     |
+| **Full Orchestration**  | Gatekeeper     | **STOP** subagents until user confirms plan details               |
+| **Direct "Proceed"**    | Validation     | **STOP** → Even if answers are given, ask 2 "Edge Case" questions |
+
+**Protocol:**
+
+1. **Never Assume:** If even 1% is unclear, ASK.
+2. **Handle Spec-heavy Requests:** When user gives a list (Answers 1, 2, 3...), do NOT skip the gate. Instead, ask about **Trade-offs** or **Edge Cases** before starting.
+3. **Wait:** Do NOT invoke subagents or write code until the user clears the Gate.
+4. **Reference:** Full protocol in `@[skills/brainstorming]`.
+
+---
+
+## TIER 2: SZABÁLYZATI PRIORITÁSI LÁNC (HIERARCHIA)
+
+Bármilyen módszertani kérdés vagy ütközés esetén a prioritási lánc szigorúan:
+1. **P0:** Globális rendszerbiztonsági és munkamenet-szabályok (`.agent/rules/GEMINI.md`)
+2. **P1:** Kanonikus Ágens- és Mentor-specifikációk (`AGENTS.md` és `MENTORS.md`)
+3. **P2:** CTM módszertani iránymutatások (`TM/` könyvtár és Cochrane Handbook v6.5)
+4. **P3:** Ad-hoc munkafolyamat-leírások (`.agent/workflows/`)
+
+---
+
+## 📁 QUICK REFERENCE
+
+### 🔴 SESSION START PROTOCOL (Research Work)
+
+**If the user's request involves an existing research project, ALWAYS do these first:**
+1. **Read `PROJECT.md`** — loads all active project states, mentor scores, open Socratic questions, and next steps
+2. **Read `AGENTS.md` & `MENTORS.md`** — confirms canonical pipeline structure, mentor rules, and compliance gates
+3. **Then proceed** with the appropriate workflow
+
+> Without reading `PROJECT.md` and `AGENTS.md`, you risk re-analyzing settled decisions, contradicting prior mentor verdicts, or ignoring known confounders.
+
+### Agents & Skills
+
+- **Masters**: `orchestrator`, `mentor-hegyi`, `mentor-garami`, `research-sage`, `lit-reviewer`, `feasibility-judge`, `meta-analyzer`
+- **Key Skills**: `brainstorming`, `plan-writing`, `behavioral-modes`
+
+### Key Scripts
+
+| Script | Command |
+|--------|---------|
+| Phase Gate Checker | `python src/check_phase_gate.py --target-phase <N>` |
+| Oversight Loop (Amendments) | `python src/check_phase_gate.py --check-amendment` |
+| Protocol Linter | `python src/validate_protocol.py PROTOCOL.md` |
+| Literature Search | `python src/literature_search.py "<query>" --analyze` |
+| Literature Screening | `python src/screen_literature.py --from-file results/search.json` |
+| Citation Verifier | `python src/citation_verifier.py PROTOCOL.md` |
+| PRISMA-trAIce | `python src/prisma_trace_reporter.py PROTOCOL.md` |
+| Forest Plot | `python src/forest_plot_builder.py data/extraction.csv` |
+
+---

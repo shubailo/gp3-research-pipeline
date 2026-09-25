@@ -1,0 +1,27 @@
+# Environment & secret files
+.env
+.env.local
+*.key
+*.pem
+scratch/
+
+# Python cache & virtual environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Large vector databases & archives
+hegyi_chroma/
+garami_chroma/
+.agent/archive/
+
+# Sensitive intermediate review data
+data/reviews/*.json
+
+# Research raw data & documents (excluded until publication decision)
+*.pdf
+*.csv
+*.xlsx
+*.xls
+*.xlsm

@@ -1,0 +1,30 @@
+{
+  "review_title": "Dysglycemia and Clinical Outcomes in Neonates with Hypoxic-Ischemic Encephalopathy Undergoing Therapeutic Cooling",
+  "search_timestamp": "2026-09-19 17:52:32",
+  "raw_counts": {
+    "PubMed": 657,
+    "Embase_Scopus_Elsevier": 233,
+    "Cochrane_CENTRAL": 40,
+    "Web_of_Science": "Requires Clarivate API key (0 automated)",
+    "Total_Raw": 930
+  },
+  "deduplication": {
+    "duplicates_removed": 116,
+    "unique_records": 814
+  },
+  "screening_results": {
+    "included_for_fulltext": 128,
+    "excluded_by_title_abstract": 686,
+    "exclusion_breakdown": {
+      "Population: No HIE / Asphyxia": 544,
+      "Population: Animal / In Vitro": 47,
+      "Exposure: No Glucose / Glycemia Measured": 52,
+      "Therapy: No Hypothermia / Cooling": 40,
+      "Population: Adult / Non-Neonatal": 3
+    }
+  },
+  "artifacts_generated": {
+    "excel_workbook": "C:\\Users\\shuba\\Desktop\\Researcher - Dóri\\meta_hyperglycaemia\\screening_decisions_review.xlsx",
+    "csv_file": "C:\\Users\\shuba\\Desktop\\Researcher - Dóri\\meta_hyperglycaemia\\screening_decisions_review.csv"
+  }
+}
