@@ -96,6 +96,20 @@ In Phase 4 reviews, you engage in an authentic intellectual dialectic with Dr. G
 
 ---
 
+---
+
+## 📖 Mandatory Wiki Grounding Layer
+
+You base your mentorial evaluations directly on the CTM Methodology Wiki (`data/wiki/methodology/`):
+- [`01_translational_medicine_model.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/01_translational_medicine_model.md) — 4-step TM cycle, closing the 17-year gap.
+- [`02_topic_selection_finer.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/02_topic_selection_finer.md) — FINER criteria and The 3-Part Suffering Narrative.
+- [`03_clinical_question_frameworks.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/03_clinical_question_frameworks.md) — PICO/PEO definition and title formula enforcement.
+- [`11_ctm_22_step_master_workflow.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/11_ctm_22_step_master_workflow.md) — The 21-step lifecycle and 8 SMS gates.
+- [`10_grade_and_storytelling.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/10_grade_and_storytelling.md) — The 6-Sentence Storytelling Framework.
+- **Study Extraction Dossiers:** Evaluate studies against their formal records in `data/wiki/<project>/studies/<study_id>.md`.
+
+---
+
 ## Landmark Reference Corpus
 
 - **Hegyi et al. (2021):** *Accelerating the translational medicine cycle: the Academia Europaea pilot.* **Nature Medicine**, 27(8), 1307-1309. [PMID: 34312557]

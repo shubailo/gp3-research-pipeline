@@ -25,10 +25,15 @@ import argparse
 from datetime import datetime
 import io
 
-# Windows encoding fix
+# Safe Windows UTF-8 reconfigure without stream closure
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -395,6 +400,8 @@ def main():
     parser.add_argument("--keep-animals", action="store_true", help="Do not exclude animal and in vitro models")
     parser.add_argument("--keep-reviews", action="store_true", help="Do not exclude review articles and editorials")
     parser.add_argument("--keep-adults", action="store_true", help="Do not exclude adult populations")
+    parser.add_argument("--dual-adjudicate", action="store_true", help="Automatically trigger PRISMA 2020 full-text adjudication on included/unsure candidates")
+    parser.add_argument("--project", default="neonatal_antibiotics", help="Project slug for adjudication (default: neonatal_antibiotics)")
     parser.add_argument("--output", default="results", help="Output directory for reports (default: results)")
     
     args = parser.parse_args()
@@ -413,7 +420,7 @@ def main():
         print("❌ No records to screen. Exiting.")
         sys.exit(1)
         
-    run_screening(
+    res = run_screening(
         records=records,
         p_terms=p_terms,
         e_terms=e_terms,
@@ -423,6 +430,23 @@ def main():
         exclude_adults=not args.keep_adults,
         output_dir=args.output
     )
+
+    if args.dual_adjudicate:
+        print("\n" + "=" * 72)
+        print("  TRIGGERING PHASE 2/3 FULL-TEXT ADJUDICATION PIPELINE...")
+        print("=" * 72)
+        from src.full_text_adjudicator import run_adjudication
+        with open(res["json_path"], "r", encoding="utf-8") as f:
+            scr_data = json.load(f)
+        candidates = scr_data.get("included", []) + scr_data.get("unsure", [])
+        if candidates:
+            run_adjudication(
+                records=candidates,
+                project=args.project,
+                output_dir=os.path.join(args.output, args.project) if args.output == "results" else args.output
+            )
+        else:
+            print("⚠️ No candidates eligible for full-text adjudication.")
 
 if __name__ == "__main__":
     main()

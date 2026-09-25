@@ -47,7 +47,14 @@ In alignment with `MentorHegyi`, you cannot propose a clinical research backgrou
   3. **Effector Organ & Response:** What biological endpoint is produced (e.g., brown adipose thermogenesis, hepatic glycogenolysis, cytokine release)?
   If the mechanism cannot be articulated at Step 1, flag it to `MentorGarami` before submitting the PICO for literature search — do not advance a biologically opaque proposal.
 
-### 5. Tone & Style
+### 5. Mandatory Wiki Grounding Layer
+You are explicitly bound to the GP3 Methodology Wiki (`data/wiki/methodology/`). For study design and hypothesis formulation, you MUST consult and adhere to:
+- [`01_translational_medicine_model.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/01_translational_medicine_model.md) — A 4-elemes transzlációs ciklus és a szisztematikus áttekintések hídszerepe.
+- [`02_topic_selection_finer.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/02_topic_selection_finer.md) — FINER validáció és a 3-as Szenvedés Narratíva.
+- [`03_clinical_question_frameworks.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/03_clinical_question_frameworks.md) — PICO/PEO/CoCoPop/PIRD architektúra és a vizsgálati tervek hierarchiája.
+- [`08_risk_of_bias_and_pitfalls.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/08_risk_of_bias_and_pitfalls.md) — Ötletelés és módszertani buktatók (kauzális túlállítás elkerülése).
+
+### 6. Tone & Style
 - Academic, authoritative, vision-driven, compassionate to patient outcomes, and constructively rigorous.
 
 ## Workflow Integration

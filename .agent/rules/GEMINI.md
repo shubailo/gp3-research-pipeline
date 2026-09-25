@@ -194,7 +194,7 @@ When user's prompt is NOT in English:
 Bármilyen módszertani kérdés vagy ütközés esetén a prioritási lánc szigorúan:
 1. **P0:** Globális rendszerbiztonsági és munkamenet-szabályok (`.agent/rules/GEMINI.md`)
 2. **P1:** Kanonikus Ágens- és Mentor-specifikációk (`AGENTS.md` és `MENTORS.md`)
-3. **P2:** CTM módszertani iránymutatások (`TM/` könyvtár és Cochrane Handbook v6.5)
+3. **P2:** CTM Módszertani és Kutatási Wiki (`data/wiki/methodology/`, `TM/` könyvtár és Cochrane Handbook v6.5)
 4. **P3:** Ad-hoc munkafolyamat-leírások (`.agent/workflows/`)
 
 ---
@@ -206,9 +206,22 @@ Bármilyen módszertani kérdés vagy ütközés esetén a prioritási lánc szi
 **If the user's request involves an existing research project, ALWAYS do these first:**
 1. **Read `PROJECT.md`** — loads all active project states, mentor scores, open Socratic questions, and next steps
 2. **Read `AGENTS.md` & `MENTORS.md`** — confirms canonical pipeline structure, mentor rules, and compliance gates
-3. **Then proceed** with the appropriate workflow
+3. **Consult `data/wiki/` (The GP3 Knowledge & Dossier Layer)**:
+   - **Master Wiki Portal:** `data/wiki/README.md`
+   - **CTM Methodology Knowledge Base:** `data/wiki/methodology/INDEX.md` (CTM 21-step master lifecycle, Template v9 14 sheets, RoB instruments, BoostR data cleaning checklist, and Cochrane Handbook v6.5)
+   - **Study Extraction Dossiers:** `data/wiki/<project_slug>/studies/` (e.g., 97 cohort dossiers in `neonatal_antibiotics`, 5 poolable cohort dossiers in `meta_hyperglycaemia`)
+4. **Then proceed** with the appropriate workflow
 
-> Without reading `PROJECT.md` and `AGENTS.md`, you risk re-analyzing settled decisions, contradicting prior mentor verdicts, or ignoring known confounders.
+> Without reading `PROJECT.md`, `AGENTS.md`, and consulting `data/wiki/`, you risk re-analyzing settled decisions, contradicting prior mentor verdicts, violating CTM extraction rules, or ignoring known confounders.
+
+### 📖 WIKI GROUNDING MANDATE (ALL AGENTS)
+When designing studies, formulating PICO, creating search keys, appraising risk of bias, or performing data extraction:
+- **`research-sage`:** Consults `data/wiki/methodology/01_translational_medicine_model.md`, `02_topic_selection_finer.md`, and `03_clinical_question_frameworks.md`.
+- **`lit-reviewer`:** Consults `data/wiki/methodology/04_systematic_search_key_guide.md`, `05_protocol_and_prospero.md`, and `06_screening_and_selection.md`.
+- **`feasibility-judge`:** Consults `data/wiki/methodology/03_clinical_question_frameworks.md`, `05_protocol_and_prospero.md`, `08_risk_of_bias_and_pitfalls.md`, and `09_statistical_synthesis_and_heterogeneity.md`.
+- **`meta-analyzer`:** Consults `data/wiki/methodology/07_data_extraction_and_boostr.md`, `08_risk_of_bias_and_pitfalls.md`, and `09_statistical_synthesis_and_heterogeneity.md`.
+- **`documentation-writer`:** Consults `data/wiki/methodology/05_protocol_and_prospero.md`, `10_grade_and_storytelling.md`, `11_ctm_22_step_master_workflow.md`, and `12_cochrane_handbook_v6_5_reference.md`.
+- **All Agents:** Ground study-level evidence directly in `data/wiki/<project_slug>/studies/<study_id>.md`.
 
 ### Agents & Skills
 

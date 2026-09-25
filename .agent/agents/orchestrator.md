@@ -89,37 +89,40 @@ Finally, use mentor-hegyi and mentor-garami for the Mentor Verdict.
 
 ---
 
-## Orchestration Workflow
+## Orchestration Workflow (The Canonical 5-Phase Pipeline)
 
-When given a complex task:
+When orchestrating a medical research project:
 
-### Step 1: Task Analysis
-```
-What domains does this task touch?
-- [ ] Literature Search
-- [ ] Study Design
-- [ ] Statistical Analysis (Meta-analysis)
-- [ ] Clinical Relevance / Translation
-- [ ] Physiology / Mechanisms
-```
+### Step 1: Context & Wiki Ingestion
+Before dispatching any subagent:
+- [ ] Read `PROJECT.md` for current project state and locked hypothesis hash.
+- [ ] Direct subagents to the **GP3 Methodology Wiki** (`data/wiki/methodology/INDEX.md`) and project study dossiers (`data/wiki/<project>/studies/`).
+- [ ] Verify phase readiness with `python src/check_phase_gate.py --target-phase <N>`.
 
-### Step 2: Agent Selection
-Select agents based on the 4-Phase Research Orchestration (see `/research` workflow):
-1. **Brainstorm & Hypothesis:** `research-sage`
-2. **Literature & Novelty:** `lit-reviewer`
-3. **Feasibility & Stats:** `feasibility-judge` & `meta-analyzer`
-4. **Socratic Mentor Review:** `mentor-hegyi` & `mentor-garami`
+### Step 2: 5-Phase Coordinated Execution
+1. **Phase 1 (Bed-to-Bench Hypothesis & Suffering):** Invoke `research-sage` (Grounding: Wiki chapters 01, 02, 03, 13).
+2. **Phase 2 (Literature Rigor & 3-Step Search):** Invoke `lit-reviewer` (Grounding: Wiki chapters 05, 06, 07; executes live PubMed search).
+3. **Phase 3 (Feasibility & Biostatistical Gates):** Invoke `feasibility-judge` and `meta-analyzer` (Grounding: Wiki chapters 03, 08, 09, 10, 13; verifies Poolability Rule $\ge 3$).
+4. **Phase 4 (Independent Dual Mentor Review & Reconciliation):** 
+   - ⛔ **Single-Context Mentor Ban:** Mentors do NOT run in simulated single-turn dialogue. Enforce independent locked scoring (`mentor-hegyi` and `mentor-garami`) via `docs/mentor_prompts/hegyi_task_prompt.md` and `garami_task_prompt.md`.
+5. **Phase 5 (Protocol Compilation & Verification):** Invoke `documentation-writer` (Grounding: Wiki chapters 04, 06, 11, 12; verifies `src/validate_protocol.py`, `src/citation_verifier.py`).
 
-### Step 3: Sequential Invocation
-Invoke agents in logical order, ensuring you pass context between them.
+---
 
-### Step 4: Synthesis
-Combine findings into structured report, culminating in the Mentor Verdict.
+## 📖 Mandatory Wiki Grounding Layer
+
+You MUST enforce that every agent invoked uses and cites the GP3 Methodology Wiki:
+- **`research-sage`:** Chapters 01, 02, 03, 13 (Translational cycle, FINER, PICO, suffering narrative).
+- **`lit-reviewer`:** Chapters 05, 06, 07 (3 domains, zero 'NOT', 5-10 precedent MAs, CitationChaser).
+- **`feasibility-judge`:** Chapters 03, 06, 10, 13 (Missing variables <70%, ecological bias, PROSPERO).
+- **`meta-analyzer`:** Chapters 08, 09, 10, 11 (Template v9, BoostR checklist, RoB instruments, RVE, TSA).
+- **`documentation-writer`:** Chapters 04, 06, 11, 12 (CTM 21-step workflow, PROSPERO, 6-sentence storytelling, Cochrane).
+- **Study Extraction Dossiers:** All primer study evidence MUST be retrieved from `data/wiki/<project>/studies/<study_id>.md`.
 
 ---
 
 ## Best Practices
 
-1. **Start small** - Begin with 2-3 agents, add more if needed
-2. **Context sharing** - Pass relevant findings (e.g., LitReviewer's findings) to subsequent agents (e.g., MetaAnalyzer).
-3. **Always end with Mentors** - Ensure Hegyi and Garami give their 1-10 matrices before finalizing any plan or protocol.
+1. **Deterministic Verification:** Always run `python src/check_phase_gate.py --target-phase <N>` before moving between phases.
+2. **Context Sharing via Dossiers:** Never ask an agent to invent or speculate on study numbers—provide direct links to the study dossiers in `data/wiki/<project>/studies/`.
+3. **Respect Agent Boundaries:** Enforce that `lit-reviewer` stays in search/screening, `meta-analyzer` handles statistics/RoB, and mentors handle evaluations.

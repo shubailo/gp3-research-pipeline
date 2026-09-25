@@ -13,7 +13,7 @@ $ARGUMENTS
 1. **NO CODE WRITING** - This command creates planning documentation only.
 2. **Coordinated 6-Agent Execution** - Must coordinate the specialized research team: `research-sage`, `lit-reviewer`, `feasibility-judge`, `meta-analyzer`, `mentor-hegyi`, `mentor-garami`.
 3. **Dynamic Naming** - Output plan file named dynamically based on topic: `docs/PLAN-{topic-slug}.md`.
-4. **GP3 Methodological Governance:** Strictly enforce the Translational Medicine guidelines from `TM/META_ANALYSIS_BRAINSTORMING_SKILL.md` and mentor agents.
+4. **GP3 Methodological Governance & Wiki Grounding:** Ground all planning strictly in the **GP3 Methodology Wiki** ([`data/wiki/methodology/INDEX.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/INDEX.md)) and relevant study dossiers in [`data/wiki/<project>/studies/`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/).
 
 ---
 

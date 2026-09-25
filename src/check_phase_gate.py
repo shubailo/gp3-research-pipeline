@@ -324,6 +324,10 @@ def append_to_amendments_file(file_path: str, record: Dict[str, Any], project_na
 
 def load_state(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
+        template_path = path.replace(".json", ".template.json") if path.endswith(".json") else path + ".template"
+        if os.path.exists(template_path):
+            with open(template_path, "r", encoding="utf-8") as f:
+                return json.load(f)
         raise FileNotFoundError(f"Az állapotfájl nem található: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)

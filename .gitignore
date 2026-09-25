@@ -15,13 +15,65 @@ venv/
 hegyi_chroma/
 garami_chroma/
 .agent/archive/
+archive/
 
 # Sensitive intermediate review data
 data/reviews/*.json
 
-# Research raw data & documents (excluded until publication decision)
-*.pdf
+# -------------------------------------------------------------
+# GP3 PIPELINE REPOSITORIUM KIZÁRÁSOK: SAJÁT ALPROJEKTEK & ADATOK
+# (Ezek a fájlok FIZIKAILAG megmaradnak a gépeden, de nem kerülnek GitHubra)
+# -------------------------------------------------------------
+
+# 1. Saját kutatási alprojektek könyvtárai
+meta_hyperglycaemia/
+balasko/
+results/
+garami_publications/
+hegyi_publications/
+TM/
+
+# 2. Egyedi tanulmány dossziék (a methodology, templates és resources marad!)
+data/wiki/*/studies/
+data/wiki/neonatal_antibiotics/
+data/wiki/meta_hyperglycaemia/
+
+# 3. Élő kutatási állapotok (a sablonok: PROJECT.template.md és project_state.template.json mennek ki!)
+PROJECT.md
+data/project_state.json
+
+# 4. Egyedi kutatási tervek és PROSPERO piszkozatok
+docs/PROSPERO-draft-*
+docs/PLAN-*
+docs/SEARCH-*
+docs/meta_analysis_protocol_*
+docs/NEOTHERM-ADJUVANT-PLAN.md
+docs/PROTOCOL-Garami-Style.md
+docs/hyperglycemia_th_presentation_outline.md
+docs/claude_assessment.md
+docs/project_history/
+
+# 5. Nyers kutatási adatok, naplók és korai piszkozatok
+metabolism_outliers.md
+PROJECT_AUDIT.md
+PROTOCOL.md
+medbuddy_master_source.md
+Search Key Guide v2.6.pdf
+
+# 6. Nyers szöveges/pdf kutatási adatok és egyedi scriptek
+data/*.txt
+data/*.pdf
+src/run_search.py
+src/extract_thesis.py
+src/generate_hyperglycaemia_wiki.py
+
+# 7. Globális fájlformátum kizárások (kivéve a wiki sablonokat és erőforrásokat!)
 *.csv
-*.xlsx
 *.xls
 *.xlsm
+*.xlsx
+*.pdf
+
+# Kivételek: a kanonikus CTM sablonok és PDF útmutatók a wikihez kellenek!
+!data/wiki/templates/*.xlsx
+!data/wiki/resources/*.pdf

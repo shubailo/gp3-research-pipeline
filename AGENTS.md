@@ -177,7 +177,7 @@ A megírt protokollokat a Python linter ellenőrzi a következő pontozási rend
 Bármilyen módszertani konfliktus esetén a prioritás szigorúan a következő:
 1. **P0:** Globális rendszerbiztonsági és munkamenet-szabályok (`.agent/rules/GEMINI.md`)
 2. **P1:** Kanonikus Ágens- és Mentor-specifikációk (`AGENTS.md` és `MENTORS.md`)
-3. **P2:** CTM módszertani iránymutatások (`TM/` könyvtár és Cochrane Handbook v6.5)
+3. **P2:** CTM Módszertani és Kutatási Wiki (`data/wiki/methodology/`, `TM/` könyvtár és Cochrane Handbook v6.5)
 4. **P3:** Ad-hoc munkafolyamat-leírások (`.agent/workflows/`)
 
 ### 5.2 Rendszerszintű P0 Alapszabály: Verifikációs Kényszer
@@ -197,4 +197,40 @@ Bármilyen módszertani konfliktus esetén a prioritás szigorúan a következő
 > - **MAJOR változás** (PICO mag-elemek vagy inklúziós/exklúziós kritériumok módosulása) esetén tilos a közvetlen szerkesztés: kötelező a két külön chat-fülön elvégzendő Független Mentori Hatáselemzés (`docs/mentor_prompts/impact_assessment_prompt_template.md`), a $\ge 60$ karakteres kutatói indoklás és a főverzió-ugrás (`v1.x` ➔ `v2.0`).
 > - **Kumulatív Hatásbővülés Védelem:** A platform kiindulási heurisztikája szerint 3 egymást követő MINOR módosítás elérésekor a rendszer a 3. módosítást automatikusan MAJOR kategóriába minősíti át (Cumulative Escalation Trigger), kötelezővé téve az átfogó mentori hatáselemzést.
 > - Minden élesített módosítás kötelezően naplózandó a `PROTOCOL_AMENDMENTS.md` és `data/project_state.json` állományokban.
+
+---
+
+## 6. A GP3 KUTATÁSI ÉS MÓDSZERTANI WIKI RENDSZER (`data/wiki/`)
+
+A projekt kanonikus háttértudása és primer kutatási bizonyítékai a `data/wiki/` struktúrában vannak rögzítve. Az ágensek munkájuk során kötelesek erre a rétegre támaszkodni és fejezeteire hivatkozni:
+
+### 6.1 Módszertani Tudástár (`data/wiki/methodology/`)
+- `01_translational_medicine_model.md`: A 4-elemes transzlációs ciklus és a szisztematikus áttekintések hídszerepe.
+- `02_topic_selection_finer.md`: FINER validáció és a 3-as Szenvedés Narratíva.
+- `03_clinical_question_frameworks.md`: A 7 klinikai kérdés keretrendszer (PICO, PECO, PEO, PFO, CoCoPop, PCC, PICo) és vizsgálati tervek hierarchiája.
+- `04_systematic_search_key_guide.md`: Szisztematikus keresési stratégia, CTM Keresőkulcs Útmutató v2.6 (Marie Anne Engh), 5–10 MA precedens szabály, ⛔ 'NOT' tilalom, adatbázis-szintaxisok.
+- `05_protocol_and_prospero.md`: A priori protokoll regisztráció és a reporting bias megelőzése.
+- `06_screening_and_selection.md`: Kettős független szűrés (Rayyan), Cohen's Kappa és CitationChaser hurok.
+- `07_data_extraction_and_boostr.md`: CTM Template v9 14 munkalapja és a BoostR 5-pontos adattisztítási checklist.
+- `08_risk_of_bias_and_pitfalls.md`: RoB 2, ROBINS-I, QUIPS, QUADAS-2, JBI eszközök és a 3 fő buktató (kauzális túlállítás, 70%-os hiányzó változó szabály, ökológiai torzítás).
+- `09_statistical_synthesis_and_heterogeneity.md`: Poolability Rule, Multilevel RVE és TSA.
+- `10_grade_and_storytelling.md`: CTM 6-mondatos formula és GRADE SoF táblázatok.
+- `11_ctm_22_step_master_workflow.md`: A Semmelweis CTM 22-lépéses mester munkafolyamata, governance (8 SMS kapu) és a teljes hivatalos Moodle kézikönyv (45 oldal).
+- `12_cochrane_handbook_v6_5_reference.md`: Cochrane Handbook v6.5 fejezeti direktívák.
+
+### 6.2 Tanulmány Dossziék (`data/wiki/<project>/studies/`)
+Minden feldolgozott primer tanulmány önálló Markdown dossziéval bírhat, amely tartalmazza:
+1. Kanonikus hivatkozás és PMID
+2. PICO illeszkedés és kohorsz demográfia
+3. Nyers 2x2 kontingencia és korrigált (aOR/aHR) becslések
+4. Részletes RoB / QUIPS értékelés doménenként
+5. Extrakciós státusz és forrás PDF
+
+### 6.3 Ágens Hozzárendelési Mátrix a Wikihez
+- **`research-sage`:** Fejezetek 01–03 (Hipotézis, FINER, Kérdéskeretek, Tervezés)
+- **`lit-reviewer`:** Fejezetek 04–06 (Keresési stratégia & CTM v2.6, 5-10 precedens, PROSPERO, Szűrés & Kappa)
+- **`feasibility-judge`:** Fejezetek 03, 05, 08, 09 (Keretrendszer választás, Poolability, Hiányzó változók 70%, Ökológiai bias)
+- **`meta-analyzer`:** Fejezetek 07–09 (Template v9, BoostR checklist, Confounder Matrix, RVE, QUIPS/RoB 2, analízis paraméterek)
+- **`documentation-writer`:** Fejezetek 05, 10–12 (6-mondatos storytelling, GRADE, Cochrane reporting, CTM 22-lépéses folyamat, cikkírási sorrend, revízió)
+- **Minden ágens:** A primer tanulmányi adatokat a `data/wiki/<project>/studies/<study_id>.md` lapokból veszi.
 

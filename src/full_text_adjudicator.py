@@ -1,540 +1,665 @@
+#!/usr/bin/env python3
 """
-GP3 Full-Text Review Adjudicator for Dysglycemia in Neonatal HIE under Cooling.
-Evaluates all 128 Title/Abstract included studies against full-text eligibility criteria.
-Generates multi-sheet Excel workbook for clinical review and PRISMA reporting.
+full_text_adjudicator.py — PRISMA 2020 Dual Independent Screening & Adjudication Engine
+========================================================================================
+GP3 Medical Research Pipeline — Phase 2/3 Quality Gate
+
+Features:
+  1. True Dual Independent Screening:
+     - Decoupled Reviewer 1 (Clinical & Population Lead) and Reviewer 2 (Methodological & Exposure Lead).
+     - Ingests two independent review files (--r1-file and --r2-file), OR evaluates columns in a unified sheet,
+       OR executes isolated dual evaluation passes with zero cross-talk.
+     - Strict methodological guard: Only calculates Cohen's Kappa (κ) if two genuinely independent evaluation
+       streams are compared. Single-pass heuristics are strictly labeled "Automated Heuristic Pre-screening".
+  2. Conflict Identification & Arbitration Table:
+     - Automatically flags all discordant records (R1 != R2 or UNSURE).
+     - Exports results/<project>/adjudication_conflicts.xlsx (.csv) with dedicated fields for human tie-breakers.
+  3. Seamless Workflow Integration:
+     - Can be invoked standalone or piped directly from src/screen_literature.py via --dual-adjudicate.
 """
 
 import os
-import re
 import sys
 import io
 import json
-import time
-import requests
-import xml.etree.ElementTree as ET
+import argparse
+import re
+from datetime import datetime
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-# Ensure UTF-8 output on Windows
+# Safe Windows UTF-8 reconfigure without stream closure
 if sys.platform == "win32":
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJECT_DIR = os.path.join(WORKSPACE_DIR, "meta_hyperglycaemia")
-CSV_PATH = os.path.join(PROJECT_DIR, "screening_decisions_review.csv")
-FINAL_XLSX_PATH = os.path.join(PROJECT_DIR, "full_text_review_and_extraction.xlsx")
-SUMMARY_JSON_PATH = os.path.join(PROJECT_DIR, "full_text_summary.json")
 
-print("======================================================================")
-print("  GP3 PRISMA FULL-TEXT SCREENING & ELIGIBILITY ADJUDICATION ENGINE")
-print("======================================================================")
 
-# Load 128 candidate articles
-df_all = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
-df_candidates = df_all[df_all["Decision"] == "INCLUDED"].copy()
-print(f"Total candidate articles to assess for full-text eligibility: {len(df_candidates)}\n")
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. EVALUATION PROFILES (INDEPENDENT REVIEWER LOGIC)
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Detailed clinical adjudication rules for full-text screening
-def adjudicate_full_text(row):
+def reviewer_1_clinical(record: dict, project: str) -> dict:
     """
-    Evaluates study against PROSPERO eligibility criteria:
-    1. Human neonates >=35w with HIE/asphyxia undergoing therapeutic hypothermia?
-    2. Hyperglycemia/blood glucose exposure evaluated during cooling?
-    3. Clinical outcomes (mortality, NDI/Bayley, MRI injury, seizures) analyzed?
-    4. Quantitative data available for extraction?
-    5. Study design: Cohort or post-hoc RCT vs review/guideline/animal/conference.
+    Reviewer 1: Clinical Population & Primary Outcome Specialist.
+    Focus: Target clinical disease, gestational age/vulnerability, patient-centered outcomes.
     """
-    title = str(row.get("Title") or "").strip()
-    abstract = str(row.get("Abstract") or "").strip()
+    title = str(record.get("Title") or record.get("title") or "").strip()
+    abstract = str(record.get("Abstract") or record.get("abstract") or "").strip()
     text = f"{title} {abstract}".lower()
-    first_author = str(row.get("First Author") or "").strip()
-    year = str(row.get("Year") or "").strip()
-    pmid = str(row.get("PMID") or "").replace(".0", "").strip()
-    journal = str(row.get("Journal") or "").strip()
-    
-    # Check 1: Animal / Preclinical (strict title and abstract filter)
-    animal_terms = ["piglet", "piglets", "swine", "porcine", "rat", "rats", "lamb", "sheep", "rodent", "murine", "pig study", "in newborn piglets"]
-    if any(a in title.lower() for a in ["piglet", "piglets", "pig study", "rats", "mice", "lambs", "swine"]):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Preclinical: Animal model",
-            "Clinical_Rationale": "Kizárva: Állatkísérletes modell (malac / rágcsáló); nem humán neonatális populáció.",
-            "Study_Type": "Animal / Preclinical",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-    if any(re.search(rf'\b{a}\b', text) for a in animal_terms) and not any(h in text for h in ["human neonates", "human infants", "patients enrolled", "clinical trial"]):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Preclinical: Animal model",
-            "Clinical_Rationale": "Kizárva: Állatkísérletes modell; nem humán újszülött kohorsz.",
-            "Study_Type": "Animal / Preclinical",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
 
-    # Check 2: Publication Type (Guideline, Consensus, Review, Editorial without primary data)
-    review_markers = [
-        "expert consensus", "recommendations for the management", "a review of", "systematic review and meta-analysis",
-        "scoping review", "narrative review", "practice guideline", "consensus statement", "current treatment options",
-        "guidelines for clinical practice"
-    ]
-    if any(m in title.lower() for m in review_markers):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Publication Type: Review / Guideline without primary data",
-            "Clinical_Rationale": "Kizárva: Szakmai irányelv, összefoglaló közlemény vagy konszenzus dokumentum; nem tartalmaz primer betegadatot.",
-            "Study_Type": "Review / Guideline",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
+    if project == "neonatal_antibiotics":
+        # Check non-human / in vitro
+        if any(a in title.lower() for a in ["piglet", "piglets", "rat", "mice", "murine", "in vitro"]):
+            return {"decision": "EXCLUDE", "reason": "Preclinical: Animal/in vitro model", "reviewer": "R1_Clinical"}
+        # Check adult / non-preterm
+        if any(w in text for w in ["adult patients", "elderly", "postmenopausal", "geriatric"]):
+            return {"decision": "EXCLUDE", "reason": "Population: Adult/geriatric population", "reviewer": "R1_Clinical"}
+        # Population check: neonates / preterm
+        has_neonate = any(w in text for w in ["neonate", "neonatal", "newborn", "preterm", "vlbw", "elbw", "infant"])
+        if not has_neonate:
+            return {"decision": "EXCLUDE", "reason": "Population: Non-neonatal cohort", "reviewer": "R1_Clinical"}
+        # Clinical outcomes: NEC or Mortality or Sepsis
+        has_outcome = any(w in text for w in ["nec", "enterocolitis", "mortality", "death", "died", "sepsis", "los", "bpd"])
+        if not has_outcome:
+            return {"decision": "UNSURE", "reason": "Outcome: Target clinical outcome unconfirmed in abstract", "reviewer": "R1_Clinical"}
+        return {"decision": "INCLUDE", "reason": "Eligible: Preterm neonates with clinical outcomes evaluated", "reviewer": "R1_Clinical"}
 
-    # Check 3: Maternal Diabetes / Pregnancy Focus (not neonatal HIE under cooling)
-    if any(m in title.lower() for m in ["maternal diabetes", "pregnancy is associated", "diabetes mellitus in pregnancy", "maternal warming", "fetal growth restriction"]):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Population: Maternal diabetes / Fetal growth restriction",
-            "Clinical_Rationale": "Kizárva: Anyai diabétesz vagy méhen belüli növekedési elmaradás vizsgálata; nem a hűtött HIE neonatális glikémia fókusz.",
-            "Study_Type": "Obstetric / Maternal",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
+    elif project == "meta_hyperglycaemia":
+        # Check animal
+        if any(a in title.lower() for a in ["piglet", "piglets", "swine", "rat", "rodent"]):
+            return {"decision": "EXCLUDE", "reason": "Preclinical: Animal model", "reviewer": "R1_Clinical"}
+        # Check HIE + Cooling
+        has_hie_cooling = ("hie" in text or "encephalopathy" in text or "asphyxia" in text) and \
+                          any(c in text for c in ["hypothermia", "cooling", "cooled", "ttm"])
+        if not has_hie_cooling:
+            return {"decision": "EXCLUDE", "reason": "Population: No therapeutic hypothermia in HIE", "reviewer": "R1_Clinical"}
+        # Check Clinical Outcomes
+        has_outcomes = any(o in text for o in ["mortality", "death", "neurodevelopment", "mri", "bayley", "seizure"])
+        if not has_outcomes:
+            return {"decision": "UNSURE", "reason": "Outcome: Long-term neurodevelopment/mortality not detailed", "reviewer": "R1_Clinical"}
+        return {"decision": "INCLUDE", "reason": "Eligible: Human neonates with HIE undergoing cooling", "reviewer": "R1_Clinical"}
 
-    # Check 4: Pediatric / Cardiac Arrest (Non-neonatal HIE)
-    if any(m in title.lower() for m in ["cardiac arrest", "pediatric cardiac arrest", "childhood", "older children"]):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Population: Pediatric cardiac arrest (non-neonatal HIE)",
-            "Clinical_Rationale": "Kizárva: Gyermekkori keringésmegállás utáni hűtés; nem perinatális hypoxiás-ischaemiás encephalopathia.",
-            "Study_Type": "Pediatric Critical Care",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 3: Conference Abstract / Symposium Summary
-    if any(m in title.lower() for m in ["symposium", "conference", "abstracts from", "meeting abstracts"]):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Publication Type: Conference proceedings / abstract only",
-            "Clinical_Rationale": "Kizárva: Konferencia absztrakt gyűjtemény; a teljes módszertan és adatkészlet nem áll rendelkezésre.",
-            "Study_Type": "Conference Abstract",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 4: Maternal Diabetes / Pregnancy-only without neonatal cooling focus
-    if "preexisting diabetes: expert consensus" in title.lower() or ("maternal warming" in title.lower()):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Population: Maternal / Obstetric population",
-            "Clinical_Rationale": "Kizárva: Anyai diabétesz vagy anyai melegítés fókusz; nem neonatális HIE terápiás hűtés.",
-            "Study_Type": "Obstetric",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 5: General neonatal intensive care / Sepsis / Non-HIE population
-    non_hie_markers = [
-        "sub-saharan africa: systematic review", "cesarean section in jiaxing", "preterm newborns",
-        "in preterm newborns", "preterm infants", "sodium l-lactate supplementation"
-    ]
-    if any(m in title.lower() for m in non_hie_markers):
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Population: Non-HIE / Preterm population",
-            "Clinical_Rationale": "Kizárva: Nem HIE-s vagy kizárólag koraszülött populáció (nem hűtött érett újszülöttek).",
-            "Study_Type": "Preterm / General NICU",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 6: Empty Abstract / Incomplete record
-    if len(abstract) < 50:
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Data: Incomplete record / No abstract or full-text available",
-            "Clinical_Rationale": "Kizárva: Nincs elérhető absztrakt vagy teljes szöveges publikáció az adatbázisban.",
-            "Study_Type": "Incomplete Record",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 7: Therapeutic Hypothermia present? (Must be therapeutic cooling for HIE, not incidental/accidental hypothermia)
-    th_terms = ["therapeutic hypothermia", "therapeutic cooling", "whole-body cooling", "whole body cooling", "selective head cooling", "head cooling", "cooled infants", "cooled neonates", "cooling therapy", "target temperature management", "coolcap", "toby"]
-    has_therapeutic_cooling = any(t in text for t in th_terms) or ("hypothermia" in text and "hie" in text and any(k in text for k in ["treated", "treatment", "therapy", "protocol"]))
-    if not has_therapeutic_cooling:
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Therapy: No therapeutic hypothermia (spontaneous/accidental hypothermia only)",
-            "Clinical_Rationale": "Kizárva: A vizsgálatban a hypothermia nem terápiás célú kezelés volt HIE-ben, hanem akcidens/spontán lehűlés vagy általános intenzív osztályos kockázati tényező.",
-            "Study_Type": "Spontaneous Hypothermia / General NICU",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 8: Exposure relevance (Must specifically evaluate Hyperglycemia, Glycemic Variability, CGM, or Continuous Glucose Profiles)
-    # Exclude studies that ONLY study hypoglycemia and do not report hyperglycemia or continuous glucose
-    hyperglycemia_specific_terms = [
-        "hyperglycemia", "hyperglycaemia", "high blood glucose", "elevated blood glucose",
-        "glycemic variability", "glycaemic variability", "cgm", "continuous glucose",
-        "glucose-to-lactate", "glucose profile", "glucose instability", "glucose levels and outcome",
-        "glycemic profile", "glycaemic profile", "dysglycemia", "dysglycaemia"
-    ]
-    has_hyperglycemia_exposure = any(k in text for k in hyperglycemia_specific_terms)
-    
-    # If it only mentions hypoglycemia without any hyperglycemia or continuous glucose analysis:
-    if "hypoglycemia" in title.lower() and not any(k in title.lower() for k in ["hyperglycemia", "hyperglycaemia", "glycemia", "glycaemic", "glucose profile"]):
-        if not has_hyperglycemia_exposure:
-            return {
-                "FT_Decision": "EXCLUDED",
-                "FT_Exclusion_Reason": "Exposure: Only hypoglycemia investigated (no hyperglycemia data)",
-                "Clinical_Rationale": "Kizárva: Kizárólag a hipoglikémia hatását elemezték; nem tartalmaz adatot hiperglikémiáról vagy folyamatos glükózprofilról.",
-                "Study_Type": "Hypoglycemia-only study",
-                "Sample_Size": "",
-                "Glucose_Threshold": "",
-                "Timing_Window": "",
-                "Reported_Outcomes": ""
-            }
-
-    if not has_hyperglycemia_exposure:
-        return {
-            "FT_Decision": "EXCLUDED",
-            "FT_Exclusion_Reason": "Exposure: No hyperglycemia or continuous glycemic profile analyzed",
-            "Clinical_Rationale": "Kizárva: Terápiás hűtés vizsgálata, de a hiperglikémia / glükózprofil nem képezte a prognosztikai analízis tárgyát.",
-            "Study_Type": "HIE Cooling (Other biomarker)",
-            "Sample_Size": "",
-            "Glucose_Threshold": "",
-            "Timing_Window": "",
-            "Reported_Outcomes": ""
-        }
-
-    # Check 8: Outcome relevance
-    has_clinical_outcome = any(k in text for k in [
-        "mortality", "death", "died", "surviv", "neurodevelopment", "neurodevelopmental",
-        "mri", "brain injury", "seizure", "seizures", "bayley", "cerebral palsy", "cp",
-        "unfavorable", "disability", "poor outcome"
-    ])
-
-    # Try to extract sample size if mentioned
-    n_match = re.search(r'\b(?:n\s*=\s*|included\s+|cohort of\s+|enrolled\s+|studied\s+)(\d{2,4})\s+(?:infants|neonates|newborns|patients|cases)\b', text)
-    sample_size = n_match.group(1) if n_match else ""
-
-    # Detect glucose threshold
-    thresh_match = re.search(r'(?:>|≥|greater than|exceeding)\s*(\d{2,3}(?:\.\d+)?)\s*(mg/dl|mmol/l)', text)
-    if thresh_match:
-        glucose_thresh = f"{thresh_match.group(0)}"
-    elif "hyperglycemia" in text:
-        glucose_thresh = ">150 to >200 mg/dL (>8.3 to >11.1 mmol/L)"
     else:
-        glucose_thresh = "Continuous / CGM / Lab profile"
+        # Generic clinical screen
+        if len(text) < 50:
+            return {"decision": "EXCLUDE", "reason": "Incomplete record", "reviewer": "R1_Clinical"}
+        return {"decision": "INCLUDE", "reason": "Clinical screening criteria met", "reviewer": "R1_Clinical"}
 
-    # Detect Timing Window (Garami 3-Phase Gate)
-    if any(k in text for k in ["first 12 h", "within 12 h", "admission", "initial", "prior to cooling"]):
-        timing_window = "Phase 1 (0–12h Post-asphyxia / Stress)"
-    elif any(k in text for k in ["during cooling", "during hypothermia", "maintenance", "72 h"]):
-        timing_window = "Phase 2 (12–72h Steady-state Cooling)"
-    elif any(k in text for k in ["rewarming", "after cooling", ">72 h"]):
-        timing_window = "Phase 3 (>72h Rewarming)"
+
+def reviewer_2_methodological(record: dict, project: str) -> dict:
+    """
+    Reviewer 2: Methodological Rigor, Exposure Assignment & Study Design Specialist.
+    Focus: Exposure duration/threshold, comparator definition, confounding, publication type.
+    """
+    title = str(record.get("Title") or record.get("title") or "").strip()
+    abstract = str(record.get("Abstract") or record.get("abstract") or "").strip()
+    text = f"{title} {abstract}".lower()
+
+    # Publication type filter
+    review_markers = ["systematic review", "meta-analysis", "narrative review", "practice guideline", "consensus statement", "editorial", "commentary"]
+    if any(m in title.lower() for m in review_markers) and "protocol" not in title.lower():
+        return {"decision": "EXCLUDE", "reason": "Design: Secondary literature / Review without primary data", "reviewer": "R2_Methodological"}
+
+    if project == "neonatal_antibiotics":
+        # Check antibiotic exposure duration analyzed
+        has_duration = any(w in text for w in ["duration", "course", "days", "dot", "lot", "prolonged", "short", "hours", "stewardship", "discontinuation", "empiric"])
+        if not has_duration:
+            return {"decision": "EXCLUDE", "reason": "Exposure: No empiric antibiotic duration/comparison analyzed", "reviewer": "R2_Methodological"}
+        # Check culture-negative / empiric context
+        has_culture_context = any(w in text for w in ["culture-negative", "negative culture", "blood culture", "empiric", "empirical", "early-onset", "eos"])
+        if not has_culture_context:
+            return {"decision": "UNSURE", "reason": "Exposure: Culture-negative status unclear from abstract", "reviewer": "R2_Methodological"}
+        return {"decision": "INCLUDE", "reason": "Eligible: Primary empirical antibiotic exposure with comparator analyzed", "reviewer": "R2_Methodological"}
+
+    elif project == "meta_hyperglycaemia":
+        # Exposure relevance: Hyperglycemia / blood glucose
+        has_glucose = any(k in text for k in ["hyperglycemia", "hyperglycaemia", "blood glucose", "glycemic", "glucose level", "dysglycemia"])
+        if not has_glucose:
+            return {"decision": "EXCLUDE", "reason": "Exposure: No hyperglycemia / glucose exposure analyzed", "reviewer": "R2_Methodological"}
+        # Quantitative data check
+        has_quant = any(q in text for q in ["cohort", "prospective", "retrospective", "trial", "odds ratio", "hazard ratio", "patients", "n="])
+        if not has_quant:
+            return {"decision": "UNSURE", "reason": "Methodology: Quantitative effect estimate unclear in abstract", "reviewer": "R2_Methodological"}
+        return {"decision": "INCLUDE", "reason": "Eligible: Quantitative glucose exposure with contrast analyzed", "reviewer": "R2_Methodological"}
+
     else:
-        timing_window = "Overall cooling period (0–72h)"
+        return {"decision": "INCLUDE", "reason": "Methodological criteria met", "reviewer": "R2_Methodological"}
 
-    # Identify primary outcomes
-    outcomes = []
-    if any(k in text for k in ["death", "mortality", "died", "survival"]):
-        outcomes.append("Mortality")
-    if any(k in text for k in ["neurodevelopment", "neurodevelopmental", "bayley", "cerebral palsy"]):
-        outcomes.append("Neurodevelopmental Impairment (NDI)")
-    if any(k in text for k in ["mri", "brain injury", "lesion", "infarct"]):
-        outcomes.append("MRI Brain Injury")
-    if any(k in text for k in ["seizure", "seizures", "aeeg", "convulsion"]):
-        outcomes.append("Seizures")
-    reported_outcomes = ", ".join(outcomes) if outcomes else "Short-term clinical recovery"
 
-    # Final Inclusion Determination
-    if has_therapeutic_cooling and has_hyperglycemia_exposure and has_clinical_outcome:
-        # Check if this is a primary clinical study
-        if any(pt in text for pt in ["we conducted", "we studied", "retrospective", "prospective", "cohort", "multicenter", "post hoc", "post-hoc", "randomized", "registry"]):
-            return {
-                "FT_Decision": "INCLUDED FOR EXTRACTION",
-                "FT_Exclusion_Reason": "None (Eligible for Meta-Analysis)",
-                "Clinical_Rationale": "BEVÁLASZTVA: Terápiás hűtést kapott HIE-s újszülöttekben mért glükóz/hiperglikémia expozíció és klinikailag releváns kimenetelek (halálozás / NDI / MRI / görcsök).",
-                "Study_Type": "Prospective/Retrospective Cohort or Post-hoc RCT",
-                "Sample_Size": sample_size,
-                "Glucose_Threshold": glucose_thresh,
-                "Timing_Window": timing_window,
-                "Reported_Outcomes": reported_outcomes
-            }
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. STATISTICAL AGREEMENT (COHEN'S KAPPA)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def calculate_cohens_kappa(r1_decisions: list[str], r2_decisions: list[str]) -> dict:
+    """
+    Computes Cohen's kappa (κ) between two independent reviewers.
+    Binary categorization: POSITIVE (INCLUDE) vs NEGATIVE (EXCLUDE / UNSURE).
+    """
+    if len(r1_decisions) != len(r2_decisions) or len(r1_decisions) == 0:
+        return {"kappa": 0.0, "observed_agreement": 0.0, "interpretation": "Insufficient data"}
+
+    # Binary normalization: INCLUDE -> 1, others -> 0
+    bin_r1 = [1 if str(d).upper().startswith("INC") else 0 for d in r1_decisions]
+    bin_r2 = [1 if str(d).upper().startswith("INC") else 0 for d in r2_decisions]
+
+    total = len(bin_r1)
+    a = sum(1 for i in range(total) if bin_r1[i] == 1 and bin_r2[i] == 1)  # Both Include
+    b = sum(1 for i in range(total) if bin_r1[i] == 1 and bin_r2[i] == 0)  # R1 Inc, R2 Exc
+    c = sum(1 for i in range(total) if bin_r1[i] == 0 and bin_r2[i] == 1)  # R1 Exc, R2 Inc
+    d = sum(1 for i in range(total) if bin_r1[i] == 0 and bin_r2[i] == 0)  # Both Exclude
+
+    po = (a + d) / total
+    pe = (((a + b) / total) * ((a + c) / total)) + (((c + d) / total) * ((b + d) / total))
+
+    if pe >= 1.0:
+        kappa = 1.0
+    else:
+        kappa = (po - pe) / (1.0 - pe)
+
+    if kappa >= 0.81:
+        interp = "Almost Perfect Agreement (PRISMA Gold Standard)"
+    elif kappa >= 0.61:
+        interp = "Substantial Agreement (Standard Methodological Rigor)"
+    elif kappa >= 0.41:
+        interp = "Moderate Agreement (Reviewer Calibration Recommended)"
+    elif kappa >= 0.21:
+        interp = "Fair Agreement (Significant Inter-Reviewer Divergence)"
+    else:
+        interp = "Poor Agreement (Urgent Arbitration Required)"
 
     return {
-        "FT_Decision": "EXCLUDED",
-        "FT_Exclusion_Reason": "Data: Qualitative narrative without extractable quantitative risk estimate",
-        "Clinical_Rationale": "Kizárva: Nincs kinyerhető numerikus kontingencia táblázat (2x2) vagy korrigált esélyhányados (aOR) a hűtés alatti hiperglikémiára.",
-        "Study_Type": "Observational (Descriptive)",
-        "Sample_Size": sample_size,
-        "Glucose_Threshold": glucose_thresh,
-        "Timing_Window": timing_window,
-        "Reported_Outcomes": reported_outcomes
+        "total_screened": total,
+        "both_include": a,
+        "r1_only_include": b,
+        "r2_only_include": c,
+        "both_exclude": d,
+        "observed_agreement_pct": round(po * 100, 2),
+        "chance_agreement_pct": round(pe * 100, 2),
+        "cohens_kappa": round(kappa, 3),
+        "interpretation": interp
     }
 
-# Execute Full-Text Adjudication across all 128 records
-results = []
-ft_included = []
-ft_excluded = []
 
-print(">>> Adjudicating all 128 articles against PRISMA & GP3 Full-Text Criteria...")
-for idx, (_, row) in enumerate(df_candidates.iterrows(), 1):
-    res = adjudicate_full_text(row)
-    combined = {**row.to_dict(), **res}
-    results.append(combined)
-    if res["FT_Decision"] == "INCLUDED FOR EXTRACTION":
-        ft_included.append(combined)
-    else:
-        ft_excluded.append(combined)
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. WORKBOOK GENERATOR
+# ─────────────────────────────────────────────────────────────────────────────
 
-print(f"\nAdjudication Complete:")
-print(f" -> INCLUDED FOR QUANTITATIVE META-ANALYSIS: {len(ft_included)} studies")
-print(f" -> EXCLUDED AT FULL-TEXT LEVEL:            {len(ft_excluded)} studies\n")
+def export_adjudication_workbooks(
+    consensus_inc: list[dict],
+    consensus_exc: list[dict],
+    conflicts: list[dict],
+    stats: dict,
+    project: str,
+    output_dir: str,
+    is_genuinely_dual: bool
+) -> tuple[str, str]:
+    """Generates styled consensus workbook and dedicated conflict arbitration sheet."""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Paths
+    master_xlsx = os.path.join(output_dir, "adjudication_consensus.xlsx")
+    conflicts_xlsx = os.path.join(output_dir, "adjudication_conflicts.xlsx")
+    conflicts_csv = os.path.join(output_dir, "adjudication_conflicts.csv")
 
-# Exclusion reasons breakdown
-exc_reasons = {}
-for item in ft_excluded:
-    r = item["FT_Exclusion_Reason"]
-    exc_reasons[r] = exc_reasons.get(r, 0) + 1
+    border_thin = Border(
+        left=Side(style='thin', color='E0E0E0'),
+        right=Side(style='thin', color='E0E0E0'),
+        top=Side(style='thin', color='E0E0E0'),
+        bottom=Side(style='thin', color='E0E0E0')
+    )
 
-for r, count in sorted(exc_reasons.items(), key=lambda x: x[1], reverse=True):
-    print(f"    * {r}: {count}")
+    # ── 1. CONFLICTS WORKBOOK (adjudication_conflicts.xlsx) ────────────────────
+    wb_conf = Workbook()
+    ws_c = wb_conf.active
+    ws_c.title = "Adjudication Conflicts"
 
-# ----------------------------------------------------------------------
-# Generate Multi-Sheet Formatted Excel Workbook
-# ----------------------------------------------------------------------
-print("\n>>> Generating styled Multi-Sheet Excel Workbook...")
-wb = Workbook()
-
-# Sheet 1: Final Included Studies for Extraction
-ws_inc = wb.active
-ws_inc.title = "1. Included for Meta-Analysis"
-
-headers_inc = [
-    "Database", "PMID", "DOI", "Year", "First Author", "Journal",
-    "Study Design / Type", "Sample Size (n)", "Glucose Threshold / Metric",
-    "Timing Window (Garami Gate)", "Clinical Outcomes Reported", "Title", "Clinical Reviewer Rationale"
-]
-ws_inc.append(headers_inc)
-
-header_fill_green = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
-header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-
-for col_idx in range(1, len(headers_inc) + 1):
-    cell = ws_inc.cell(row=1, column=col_idx)
-    cell.fill = header_fill_green
-    cell.font = header_font
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-border_thin = Border(
-    left=Side(style='thin', color='E0E0E0'),
-    right=Side(style='thin', color='E0E0E0'),
-    top=Side(style='thin', color='E0E0E0'),
-    bottom=Side(style='thin', color='E0E0E0')
-)
-
-fill_included_row = PatternFill(start_color="EAF2E8", end_color="EAF2E8", fill_type="solid")
-
-for row_idx, item in enumerate(ft_included, start=2):
-    row_vals = [
-        item.get("Database", ""),
-        str(item.get("PMID", "")).replace(".0", ""),
-        item.get("DOI", ""),
-        item.get("Year", ""),
-        item.get("First Author", ""),
-        item.get("Journal", ""),
-        item.get("Study_Type", ""),
-        item.get("Sample_Size", ""),
-        item.get("Glucose_Threshold", ""),
-        item.get("Timing_Window", ""),
-        item.get("Reported_Outcomes", ""),
-        item.get("Title", ""),
-        item.get("Clinical_Rationale", "")
+    headers_conf = [
+        "Record_ID", "PMID", "DOI", "Year", "First_Author", "Journal",
+        "R1_Decision", "R1_Rationale", "R2_Decision", "R2_Rationale",
+        "Conflict_Type", "Human_Arbiter_Decision", "Arbitration_Rationale", "Title", "Abstract"
     ]
-    ws_inc.append(row_vals)
+    ws_c.append(headers_conf)
+
+    header_fill_orange = PatternFill(start_color="D35400", end_color="D35400", fill_type="solid")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+    for col_idx in range(1, len(headers_conf) + 1):
+        cell = ws_c.cell(row=1, column=col_idx)
+        cell.fill = header_fill_orange
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    fill_conflict_row = PatternFill(start_color="FEF9E7", end_color="FEF9E7", fill_type="solid")
+    fill_arbiter_col = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")
+
+    for row_idx, item in enumerate(conflicts, start=2):
+        row_vals = [
+            str(item.get("Record_ID", row_idx - 1)),
+            str(item.get("PMID", "")).replace(".0", ""),
+            str(item.get("DOI", "")),
+            str(item.get("Year", "")).replace(".0", ""),
+            str(item.get("First_Author", item.get("author", ""))),
+            str(item.get("Journal", "")),
+            str(item.get("R1_Decision", "")),
+            str(item.get("R1_Rationale", "")),
+            str(item.get("R2_Decision", "")),
+            str(item.get("R2_Rationale", "")),
+            str(item.get("Conflict_Type", "Discordant (R1 != R2)")),
+            str(item.get("Human_Arbiter_Decision", "")),  # Empty for human filling
+            str(item.get("Arbitration_Rationale", "")),   # Empty for human filling
+            str(item.get("Title") or item.get("title") or ""),
+            str(item.get("Abstract") or item.get("abstract") or "")[:500]
+        ]
+        ws_c.append(row_vals)
+        for col_idx in range(1, len(headers_conf) + 1):
+            c = ws_c.cell(row=row_idx, column=col_idx)
+            c.border = border_thin
+            c.fill = fill_arbiter_col if col_idx in [12, 13] else fill_conflict_row
+            if col_idx in [1, 2, 4, 7, 9, 11]:
+                c.alignment = Alignment(horizontal="center", vertical="top")
+            elif col_idx in [8, 10, 14, 15]:
+                c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                c.font = Font(name="Calibri", size=9)
+            else:
+                c.alignment = Alignment(horizontal="left", vertical="top")
+
+    col_widths_c = {"A": 10, "B": 12, "C": 22, "D": 8, "E": 18, "F": 22, "G": 14, "H": 30, "I": 14, "J": 30, "K": 22, "L": 22, "M": 32, "N": 40, "O": 50}
+    for col_let, w in col_widths_c.items():
+        ws_c.column_dimensions[col_let].width = w
+
+    ws_c.freeze_panes = "A2"
+    wb_conf.save(conflicts_xlsx)
+
+    # Export conflicts CSV
+    df_conf = pd.DataFrame(conflicts)
+    if not df_conf.empty:
+        df_conf.to_csv(conflicts_csv, index=False, encoding="utf-8-sig")
+
+    # ── 2. MASTER ADJUDICATION WORKBOOK (adjudication_consensus.xlsx) ─────────
+    wb_mast = Workbook()
+
+    # Sheet 1: Consensus Included
+    ws_inc = wb_mast.active
+    ws_inc.title = "Consensus Included"
+    headers_inc = ["Record_ID", "PMID", "DOI", "Year", "First_Author", "Journal", "R1_Decision", "R2_Decision", "Title", "Extraction_Status"]
+    ws_inc.append(headers_inc)
+    header_fill_green = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
     for col_idx in range(1, len(headers_inc) + 1):
-        c = ws_inc.cell(row=row_idx, column=col_idx)
-        c.border = border_thin
-        c.fill = fill_included_row
-        if col_idx in [2, 4, 8]:
-            c.alignment = Alignment(horizontal="center", vertical="top")
-        elif col_idx in [12, 13]:
-            c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            c.font = Font(name="Calibri", size=9)
-        else:
-            c.alignment = Alignment(horizontal="left", vertical="top")
-            c.font = Font(name="Calibri", size=10)
+        cell = ws_inc.cell(row=1, column=col_idx)
+        cell.fill = header_fill_green
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
 
-ws_inc.freeze_panes = "A2"
+    fill_inc_row = PatternFill(start_color="EAF2E8", end_color="EAF2E8", fill_type="solid")
+    for row_idx, item in enumerate(consensus_inc, start=2):
+        row_vals = [
+            str(item.get("Record_ID", row_idx - 1)),
+            str(item.get("PMID", "")).replace(".0", ""),
+            str(item.get("DOI", "")),
+            str(item.get("Year", "")).replace(".0", ""),
+            str(item.get("First_Author", item.get("author", ""))),
+            str(item.get("Journal", "")),
+            str(item.get("R1_Decision", "INCLUDE")),
+            str(item.get("R2_Decision", "INCLUDE")),
+            str(item.get("Title", item.get("title", ""))),
+            "ELIGIBLE FOR EXTRACTION"
+        ]
+        ws_inc.append(row_vals)
+        for col_idx in range(1, len(headers_inc) + 1):
+            c = ws_inc.cell(row=row_idx, column=col_idx)
+            c.border = border_thin
+            c.fill = fill_inc_row
+            if col_idx in [1, 2, 4, 7, 8]:
+                c.alignment = Alignment(horizontal="center", vertical="top")
+            elif col_idx == 9:
+                c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            else:
+                c.alignment = Alignment(horizontal="left", vertical="top")
 
-# Sheet 2: Full-Text Excluded Studies
-ws_exc = wb.create_sheet(title="2. Full-Text Excluded Studies")
-headers_exc = [
-    "Database", "PMID", "DOI", "Year", "First Author", "Journal",
-    "Full-Text Exclusion Reason", "Clinical Rationale & Notes", "Title", "Abstract"
-]
-ws_exc.append(headers_exc)
+    ws_inc.freeze_panes = "A2"
 
-header_fill_red = PatternFill(start_color="78281F", end_color="78281F", fill_type="solid")
-for col_idx in range(1, len(headers_exc) + 1):
-    cell = ws_exc.cell(row=1, column=col_idx)
-    cell.fill = header_fill_red
-    cell.font = header_font
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-fill_excluded_row = PatternFill(start_color="FDEDEC", end_color="FDEDEC", fill_type="solid")
-
-for row_idx, item in enumerate(ft_excluded, start=2):
-    row_vals = [
-        item.get("Database", ""),
-        str(item.get("PMID", "")).replace(".0", ""),
-        item.get("DOI", ""),
-        item.get("Year", ""),
-        item.get("First Author", ""),
-        item.get("Journal", ""),
-        item.get("FT_Exclusion_Reason", ""),
-        item.get("Clinical_Rationale", ""),
-        item.get("Title", ""),
-        item.get("Abstract", "")
-    ]
-    ws_exc.append(row_vals)
+    # Sheet 2: Consensus Excluded
+    ws_exc = wb_mast.create_sheet(title="Consensus Excluded")
+    headers_exc = ["Record_ID", "PMID", "DOI", "Year", "First_Author", "Journal", "Exclusion_Reason", "R1_Rationale", "R2_Rationale", "Title"]
+    ws_exc.append(headers_exc)
+    header_fill_red = PatternFill(start_color="78281F", end_color="78281F", fill_type="solid")
     for col_idx in range(1, len(headers_exc) + 1):
-        c = ws_exc.cell(row=row_idx, column=col_idx)
-        c.border = border_thin
-        c.fill = fill_excluded_row
-        if col_idx in [2, 4]:
-            c.alignment = Alignment(horizontal="center", vertical="top")
-        elif col_idx in [9, 10]:
-            c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            c.font = Font(name="Calibri", size=9)
-        else:
-            c.alignment = Alignment(horizontal="left", vertical="top")
-            c.font = Font(name="Calibri", size=10)
+        cell = ws_exc.cell(row=1, column=col_idx)
+        cell.fill = header_fill_red
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
 
-ws_exc.freeze_panes = "A2"
+    fill_exc_row = PatternFill(start_color="FDEDEC", end_color="FDEDEC", fill_type="solid")
+    for row_idx, item in enumerate(consensus_exc, start=2):
+        row_vals = [
+            str(item.get("Record_ID", row_idx - 1)),
+            str(item.get("PMID", "")).replace(".0", ""),
+            str(item.get("DOI", "")),
+            str(item.get("Year", "")).replace(".0", ""),
+            str(item.get("First_Author", item.get("author", ""))),
+            str(item.get("Journal", "")),
+            str(item.get("Exclusion_Reason", item.get("R1_Rationale", "Excluded"))),
+            str(item.get("R1_Rationale", "")),
+            str(item.get("R2_Rationale", "")),
+            str(item.get("Title", item.get("title", "")))
+        ]
+        ws_exc.append(row_vals)
+        for col_idx in range(1, len(headers_exc) + 1):
+            c = ws_exc.cell(row=row_idx, column=col_idx)
+            c.border = border_thin
+            c.fill = fill_exc_row
+            if col_idx in [1, 2, 4]:
+                c.alignment = Alignment(horizontal="center", vertical="top")
+            elif col_idx in [7, 8, 9, 10]:
+                c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                c.font = Font(name="Calibri", size=9)
+            else:
+                c.alignment = Alignment(horizontal="left", vertical="top")
 
-# Sheet 3: PRISMA Flow Summary
-ws_sum = wb.create_sheet(title="3. PRISMA Flow & Metrics")
-ws_sum.column_dimensions["A"].width = 35
-ws_sum.column_dimensions["B"].width = 20
-ws_sum.column_dimensions["C"].width = 45
+    ws_exc.freeze_panes = "A2"
 
-sum_fill_header = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-ws_sum.append(["PRISMA Stage", "Record Count", "Methodological Description"])
-for c_idx in range(1, 4):
-    c = ws_sum.cell(row=1, column=c_idx)
-    c.fill = sum_fill_header
-    c.font = header_font
-    c.alignment = Alignment(horizontal="center", vertical="center")
+    # Sheet 3: PRISMA & Agreement Metrics
+    ws_met = wb_mast.create_sheet(title="PRISMA Agreement Metrics")
+    ws_met.column_dimensions["A"].width = 38
+    ws_met.column_dimensions["B"].width = 24
+    ws_met.column_dimensions["C"].width = 45
 
-prisma_rows = [
-    ("Raw Records Identified (PubMed)", 657, "NCBI E-utilities full text-word search"),
-    ("Raw Records Identified (Embase/Scopus)", 233, "Elsevier API exact-phrase search"),
-    ("Raw Records Identified (Cochrane CENTRAL)", 40, "CENTRAL trials & CDSR systematic reviews"),
-    ("Total Raw Records Retrieved", 930, "Combined multi-database literature search"),
-    ("Duplicates Removed", 116, "Multi-stage normalized DOI & Title deduplication"),
-    ("Records Screened (Title / Abstract)", 814, "Unique records evaluated against GP3 PICO"),
-    ("Records Excluded (Title / Abstract)", 686, "Animal, adult, no-HIE, no-cooling exclusions"),
-    ("Reports Sought for Full-Text Retrieval", 128, "Candidates eligible for full-text assessment"),
-    ("Reports Excluded at Full-Text Review", len(ft_excluded), "Detailed breakdown in Sheet 2"),
-    ("Studies Included in Quantitative Synthesis", len(ft_included), "Final poolable study cohort (Sheet 1)")
-]
+    header_fill_blue = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    ws_met.append(["PRISMA Screening & Adjudication Metric", "Value", "Methodological Standard"])
+    for col_idx in range(1, 4):
+        c = ws_met.cell(row=1, column=col_idx)
+        c.fill = header_fill_blue
+        c.font = font_header
+        c.alignment = Alignment(horizontal="center", vertical="center")
 
-for r_idx, r_data in enumerate(prisma_rows, start=2):
-    ws_sum.append(list(r_data))
-    for c_idx in range(1, 4):
-        c = ws_sum.cell(row=r_idx, column=c_idx)
-        c.border = border_thin
-        if c_idx == 2:
-            c.alignment = Alignment(horizontal="center", vertical="center")
-            c.font = Font(name="Calibri", size=11, bold=True)
-        else:
-            c.alignment = Alignment(horizontal="left", vertical="center")
-            c.font = Font(name="Calibri", size=10)
+    kappa_val_str = str(stats.get("cohens_kappa", "N/A")) if is_genuinely_dual else "N/A (Heuristic Pre-screening)"
+    interp_str = stats.get("interpretation", "N/A") if is_genuinely_dual else "Single-Pass Heuristic (Kappa not applicable)"
 
-# Set Column Widths for all sheets
-col_widths_inc = {"A": 22, "B": 12, "C": 25, "D": 8, "E": 16, "F": 22, "G": 22, "H": 16, "I": 28, "J": 26, "K": 32, "L": 45, "M": 45}
-for col_letter, w in col_widths_inc.items():
-    ws_inc.column_dimensions[col_letter].width = w
-
-col_widths_exc = {"A": 22, "B": 12, "C": 25, "D": 8, "E": 16, "F": 22, "G": 32, "H": 45, "I": 45, "J": 55}
-for col_letter, w in col_widths_exc.items():
-    ws_exc.column_dimensions[col_letter].width = w
-
-wb.save(FINAL_XLSX_PATH)
-print(f"[OK] Multi-Sheet PRISMA Excel Workbook saved to: {FINAL_XLSX_PATH}")
-
-# Save JSON summary
-summary_data = {
-    "PRISMA_2020_Flow": {
-        "Identification": {
-            "PubMed": 657,
-            "Embase_Scopus_Elsevier": 233,
-            "Cochrane_CENTRAL_CDSR": 40,
-            "Total_Raw": 930
-        },
-        "Deduplication": {
-            "Duplicates_Removed": 116,
-            "Unique_Screened": 814
-        },
-        "Title_Abstract_Screening": {
-            "Excluded": 686,
-            "Included_for_Full_Text": 128
-        },
-        "Full_Text_Eligibility_Assessment": {
-            "Assessed": 128,
-            "Excluded_at_Full_Text": len(ft_excluded),
-            "Exclusion_Breakdown": exc_reasons,
-            "Included_in_Quantitative_Synthesis": len(ft_included)
-        }
-    },
-    "Included_Studies_List": [
-        {
-            "PMID": str(s.get("PMID", "")).replace(".0", ""),
-            "First_Author": s.get("First Author", ""),
-            "Year": s.get("Year", ""),
-            "Journal": s.get("Journal", ""),
-            "Title": s.get("Title", ""),
-            "Glucose_Threshold": s.get("Glucose_Threshold", ""),
-            "Timing_Window": s.get("Timing_Window", ""),
-            "Reported_Outcomes": s.get("Reported_Outcomes", "")
-        }
-        for s in ft_included
+    metric_rows = [
+        ("Total Records Evaluated", stats.get("total_screened", len(consensus_inc) + len(consensus_exc) + len(conflicts)), "PRISMA 2020 Item 8"),
+        ("Consensus INCLUDED (Ready for Extraction)", len(consensus_inc), "Agreed by both independent review streams"),
+        ("Consensus EXCLUDED (Definitive Ineligible)", len(consensus_exc), "Concordantly excluded by both review streams"),
+        ("DISCORDANT CONFLICTS (Human Arbitration)", len(conflicts), "Items logged to adjudication_conflicts.xlsx"),
+        ("Screening Mode", "Dual Independent Screening" if is_genuinely_dual else "Automated Heuristic Pre-screening", "Cochrane Handbook Section 4.6"),
+        ("Observed Agreement Rate (%)", f"{stats.get('observed_agreement_pct', 0.0)}%", "Po = (a + d) / Total"),
+        ("Chance Agreement Rate (%)", f"{stats.get('chance_agreement_pct', 0.0)}%", "Pe = P(Inc)P(Inc) + P(Exc)P(Exc)"),
+        ("Cohen's Kappa (κ)", kappa_val_str, "PRISMA Gold Standard (>=0.60 required)"),
+        ("Kappa Interpretation", interp_str, "Landis & Koch (1977) scale")
     ]
-}
 
-with open(SUMMARY_JSON_PATH, "w", encoding="utf-8") as f:
-    json.dump(summary_data, f, indent=2, ensure_ascii=False)
-print(f"[OK] Full-Text Summary JSON saved to: {SUMMARY_JSON_PATH}")
+    for r_idx, r_data in enumerate(metric_rows, start=2):
+        ws_met.append(list(r_data))
+        for col_idx in range(1, 4):
+            c = ws_met.cell(row=r_idx, column=col_idx)
+            c.border = border_thin
+            if col_idx == 2:
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                c.font = Font(name="Calibri", size=11, bold=True)
+            else:
+                c.alignment = Alignment(horizontal="left", vertical="center")
 
-print("\n[DONE] Full-text review complete!")
+    wb_mast.save(master_xlsx)
+    return master_xlsx, conflicts_xlsx
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. MAIN ORCHESTRATION PIPELINE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_adjudication(
+    records: list[dict],
+    project: str,
+    output_dir: str,
+    r1_col: str = None,
+    r2_col: str = None,
+    is_genuinely_dual: bool = False
+) -> dict:
+    """Core adjudication execution pipeline."""
+    print(f"\n>>> Running PRISMA Adjudication on {len(records)} records (Project: {project})...")
+    print(f"    Mode: {'Dual Independent Screening' if is_genuinely_dual else 'Automated Heuristic Pre-screening'}")
+
+    r1_decisions = []
+    r2_decisions = []
+    
+    consensus_inc = []
+    consensus_exc = []
+    conflicts = []
+
+    for idx, rec in enumerate(records, 1):
+        rec_id = rec.get("Record_ID") or rec.get("record_id") or idx
+
+        # Determine R1 decision
+        if r1_col and r1_col in rec and pd.notna(rec[r1_col]):
+            r1_d = str(rec[r1_col]).upper().strip()
+            r1_r = str(rec.get("R1_Rationale", rec.get("R1_Reviewer_Notes", "Recorded in dataset"))).strip()
+        else:
+            eval_r1 = reviewer_1_clinical(rec, project)
+            r1_d = eval_r1["decision"]
+            r1_r = eval_r1["reason"]
+
+        # Determine R2 decision
+        if r2_col and r2_col in rec and pd.notna(rec[r2_col]):
+            r2_d = str(rec[r2_col]).upper().strip()
+            r2_r = str(rec.get("R2_Rationale", rec.get("R2_Reviewer_Notes", "Recorded in dataset"))).strip()
+        else:
+            eval_r2 = reviewer_2_methodological(rec, project)
+            r2_d = eval_r2["decision"]
+            r2_r = eval_r2["reason"]
+
+        r1_decisions.append(r1_d)
+        r2_decisions.append(r2_d)
+
+        annotated = {
+            **rec,
+            "Record_ID": rec_id,
+            "R1_Decision": r1_d,
+            "R1_Rationale": r1_r,
+            "R2_Decision": r2_d,
+            "R2_Rationale": r2_r
+        }
+
+        # Adjudication logic
+        is_r1_inc = r1_d.startswith("INC")
+        is_r2_inc = r2_d.startswith("INC")
+        is_r1_exc = r1_d.startswith("EXC")
+        is_r2_exc = r2_d.startswith("EXC")
+
+        if is_r1_inc and is_r2_inc:
+            annotated["Adjudication_Status"] = "CONSENSUS_INCLUDE"
+            consensus_inc.append(annotated)
+        elif is_r1_exc and is_r2_exc:
+            annotated["Adjudication_Status"] = "CONSENSUS_EXCLUDE"
+            annotated["Exclusion_Reason"] = r1_r if len(r1_r) > len(r2_r) else r2_r
+            consensus_exc.append(annotated)
+        else:
+            annotated["Adjudication_Status"] = "CONFLICT_NEEDS_ARBITRATION"
+            if is_r1_inc and is_r2_exc:
+                annotated["Conflict_Type"] = "Discordant: R1 Include vs R2 Exclude"
+            elif is_r1_exc and is_r2_inc:
+                annotated["Conflict_Type"] = "Discordant: R1 Exclude vs R2 Include"
+            else:
+                annotated["Conflict_Type"] = f"Unsure Flag: R1({r1_d}) vs R2({r2_d})"
+            annotated["Human_Arbiter_Decision"] = ""  # Left empty for human decision
+            annotated["Arbitration_Rationale"] = ""   # Left empty for human rationale
+            conflicts.append(annotated)
+
+    # Statistical evaluation
+    if is_genuinely_dual:
+        stats = calculate_cohens_kappa(r1_decisions, r2_decisions)
+    else:
+        # Prevent fake kappa
+        stats = {
+            "total_screened": len(records),
+            "both_include": len(consensus_inc),
+            "both_exclude": len(consensus_exc),
+            "conflicts": len(conflicts),
+            "observed_agreement_pct": round((len(consensus_inc) + len(consensus_exc)) / len(records) * 100, 2) if records else 0.0,
+            "chance_agreement_pct": 0.0,
+            "cohens_kappa": "N/A",
+            "interpretation": "Single-Pass Heuristic Pre-screening (Kappa not applicable to avoid false rigor)"
+        }
+
+    # Export workbooks
+    master_path, conflict_path = export_adjudication_workbooks(
+        consensus_inc=consensus_inc,
+        consensus_exc=consensus_exc,
+        conflicts=conflicts,
+        stats=stats,
+        project=project,
+        output_dir=output_dir,
+        is_genuinely_dual=is_genuinely_dual
+    )
+
+    # Export JSON summary
+    summary_path = os.path.join(output_dir, "adjudication_summary.json")
+    with open(summary_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "project": project,
+            "timestamp": datetime.now().isoformat(),
+            "mode": "Dual Independent Screening" if is_genuinely_dual else "Automated Heuristic Pre-screening",
+            "stats": stats,
+            "counts": {
+                "total": len(records),
+                "consensus_included": len(consensus_inc),
+                "consensus_excluded": len(consensus_exc),
+                "conflicts_requiring_human_arbitration": len(conflicts)
+            },
+            "artifacts": {
+                "master_workbook": master_path,
+                "conflict_workbook": conflict_path
+            }
+        }, f, indent=2, ensure_ascii=False)
+
+    print("\n" + "=" * 72)
+    print("  PRISMA 2020 ADJUDICATION COMPLETE")
+    print("=" * 72)
+    print(f"  Total records assessed:             {len(records):>5}")
+    print(f"  Consensus INCLUDED for extraction:  {len(consensus_inc):>5}")
+    print(f"  Consensus EXCLUDED:                 {len(consensus_exc):>5}")
+    print(f"  DISCORDANT CONFLICTS (Human Arb.):  {len(conflicts):>5}")
+    if is_genuinely_dual:
+        print(f"  Cohen's Kappa (κ):                  {stats['cohens_kappa']:>5} ({stats['interpretation']})")
+    else:
+        print(f"  Cohen's Kappa:                      [N/A - Methodological Guard Applied]")
+    print(f"  Conflict Workbook saved:            {conflict_path}")
+    print(f"  Master Workbook saved:              {master_path}")
+    print("=" * 72 + "\n")
+
+    return {
+        "consensus_included": len(consensus_inc),
+        "consensus_excluded": len(consensus_exc),
+        "conflicts": len(conflicts),
+        "master_path": master_path,
+        "conflict_path": conflict_path,
+        "summary_path": summary_path
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="PRISMA 2020 Dual Independent Screening & Adjudication Engine")
+    parser.add_argument("--project", default="neonatal_antibiotics", help="Project slug (e.g. neonatal_antibiotics, meta_hyperglycaemia)")
+    parser.add_argument("--input", help="Path to candidates CSV/XLSX/JSON file")
+    parser.add_argument("--r1-file", help="Path to independent Reviewer 1 decisions JSON/CSV")
+    parser.add_argument("--r2-file", help="Path to independent Reviewer 2 decisions JSON/CSV")
+    parser.add_argument("--r1-col", help="Column name for Reviewer 1 decision in unified sheet")
+    parser.add_argument("--r2-col", help="Column name for Reviewer 2 decision in unified sheet")
+    parser.add_argument("--output-dir", help="Output directory for adjudication artifacts")
+    
+    args = parser.parse_args()
+
+    # Determine default paths if not provided
+    output_dir = args.output_dir or os.path.join(WORKSPACE_DIR, "results", args.project)
+
+    records = []
+    is_genuinely_dual = False
+
+    # Scenario 1: Separate R1 and R2 files provided
+    if args.r1_file and args.r2_file:
+        is_genuinely_dual = True
+        print(f"Loading Independent Reviewer 1: {args.r1_file}")
+        print(f"Loading Independent Reviewer 2: {args.r2_file}")
+        # Load R1
+        df_r1 = pd.read_json(args.r1_file) if args.r1_file.endswith(".json") else pd.read_csv(args.r1_file)
+        df_r2 = pd.read_json(args.r2_file) if args.r2_file.endswith(".json") else pd.read_csv(args.r2_file)
+        
+        # Merge on DOI or Title or Record_ID
+        records = df_r1.to_dict(orient="records")
+        r2_dict = {str(r.get("DOI", r.get("Title", ""))): r for r in df_r2.to_dict(orient="records")}
+        for rec in records:
+            key = str(rec.get("DOI", rec.get("Title", "")))
+            if key in r2_dict:
+                rec["R2_Decision"] = r2_dict[key].get("decision") or r2_dict[key].get("R2_Decision", "EXCLUDE")
+                rec["R2_Rationale"] = r2_dict[key].get("reason") or r2_dict[key].get("R2_Rationale", "")
+
+    # Scenario 2: Input file provided
+    elif args.input:
+        in_path = args.input if os.path.isabs(args.input) else os.path.join(WORKSPACE_DIR, args.input)
+        if not os.path.exists(in_path):
+            print(f"❌ Input file not found: {in_path}")
+            sys.exit(1)
+        
+        if in_path.endswith(".xlsx") or in_path.endswith(".xls"):
+            df_in = pd.read_excel(in_path)
+        elif in_path.endswith(".json"):
+            with open(in_path, "r", encoding="utf-8") as f:
+                raw_j = json.load(f)
+            df_in = pd.DataFrame(raw_j if isinstance(raw_j, list) else raw_j.get("included", []) + raw_j.get("unsure", []))
+        else:
+            df_in = pd.read_csv(in_path, encoding="utf-8-sig")
+
+        records = df_in.to_dict(orient="records")
+
+        # Check if unified sheet already contains two distinct reviewer columns
+        if args.r1_col and args.r2_col and args.r1_col in df_in.columns and args.r2_col in df_in.columns:
+            is_genuinely_dual = True
+        elif "R1_Shubail_Decision" in df_in.columns and "CoLead_Dori_Decision" in df_in.columns:
+            # Check if both have decisions
+            non_null_r1 = df_in["R1_Shubail_Decision"].dropna().count()
+            non_null_r2 = df_in["CoLead_Dori_Decision"].dropna().count()
+            if non_null_r1 > 0 and non_null_r2 > 0:
+                is_genuinely_dual = True
+                args.r1_col = "R1_Shubail_Decision"
+                args.r2_col = "CoLead_Dori_Decision"
+
+    # Scenario 3: Fallback project defaults
+    else:
+        if args.project == "meta_hyperglycaemia":
+            in_path = os.path.join(WORKSPACE_DIR, "meta_hyperglycaemia", "screening_decisions_review.csv")
+            if os.path.exists(in_path):
+                df_in = pd.read_csv(in_path, encoding="utf-8-sig")
+                records = df_in[df_in.get("Decision") == "INCLUDED"].to_dict(orient="records")
+        elif args.project == "neonatal_antibiotics":
+            in_path = os.path.join(WORKSPACE_DIR, "results", "neonatal_antibiotics", "pilot_screening_100.xlsx")
+            if os.path.exists(in_path):
+                df_in = pd.read_excel(in_path)
+                records = df_in.to_dict(orient="records")
+                if "AI_Decision" in df_in.columns and "R1_Shubail_Decision" in df_in.columns:
+                    if df_in["AI_Decision"].dropna().count() > 0 and df_in["R1_Shubail_Decision"].dropna().count() > 0:
+                        is_genuinely_dual = True
+                        args.r1_col = "AI_Decision"
+                        args.r2_col = "R1_Shubail_Decision"
+
+    if not records:
+        print(f"❌ No records loaded for adjudication in project '{args.project}'. Specify --input.")
+        sys.exit(1)
+
+    run_adjudication(
+        records=records,
+        project=args.project,
+        output_dir=output_dir,
+        r1_col=args.r1_col,
+        r2_col=args.r2_col,
+        is_genuinely_dual=is_genuinely_dual
+    )
+
+if __name__ == "__main__":
+    main()

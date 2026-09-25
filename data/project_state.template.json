@@ -1,0 +1,53 @@
+{
+  "active_project": "example_project",
+  "last_updated": "2026-09-25T00:00:00.000000+00:00",
+  "projects": {
+    "example_project": {
+      "name": "Example Systematic Review & Meta-Analysis",
+      "current_phase": 1,
+      "target_phase_ready": 1,
+      "protocol_version": "v0.1",
+      "baseline_v1_hash": null,
+      "locked_hypothesis_hash": null,
+      "inclusion_criteria": "Adults (≥18y) with target condition; randomized controlled trials with ≥10 patients per group",
+      "exclusion_criteria": "Pediatric cohorts; non-randomized studies; case reports; missing full-text",
+      "pico": {
+        "population": "Target Patient Population",
+        "intervention_exposure": "Intervention or Exposure",
+        "comparator": "Placebo or Standard Control",
+        "outcome": "Primary Clinical Endpoint",
+        "title": "Investigating the effect of Intervention on Outcome in Population"
+      },
+      "amendment_history": [],
+      "gates": {
+        "phase_1": {
+          "pico_defined": false,
+          "title_formula_valid": false,
+          "suffering_narrative_present": false
+        },
+        "phase_2": {
+          "precedent_count": 0,
+          "precedent_limit_justification": false,
+          "not_operator_prohibited": true,
+          "live_search_executed": false
+        },
+        "phase_3": {
+          "poolable_studies_count": 0,
+          "confounder_matrix_defined": false,
+          "missing_variable_rule_enforced": false
+        },
+        "phase_4": {
+          "hegyi_score_locked": false,
+          "garami_score_locked": false,
+          "reconciliation_completed": false,
+          "socratic_questions_resolved": false
+        },
+        "phase_5": {
+          "protocol_file_exists": false,
+          "linter_score": 0,
+          "citation_verified": false
+        }
+      }
+    }
+  }
+}

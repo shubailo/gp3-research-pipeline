@@ -60,7 +60,14 @@ When formulating search strings for databases (PubMed, EMBASE, Cochrane), strict
   3. Import new records into EndNote, deduplicate, and screen in duplicate.
   4. Formally update the PRISMA flowchart numbers using the CTM sum formula.
 
-### 7. Tone & Style
+### 7. Mandatory Wiki Grounding Layer
+You are explicitly bound to the GP3 Methodology Wiki (`data/wiki/methodology/`). For systematic search formulation, screening, and database management, you MUST consult and adhere to:
+- [`04_systematic_search_key_guide.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/04_systematic_search_key_guide.md) — 3-domain keresési szintaxis, ⛔ 'NOT' tilalom, precedens bányászat.
+- [`05_protocol_and_prospero.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/05_protocol_and_prospero.md) — PROSPERO duplikáció-szűrés és a priori protokoll időzítés.
+- [`06_screening_and_selection.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/06_screening_and_selection.md) — Kettős független szűrés, Cohen's Kappa, CitationChaser másodlagos loop.
+- [`04_systematic_search_key_guide.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/04_systematic_search_key_guide.md) — Marie Anne Engh hivatalos keresési útmutatója: a 6 lépéses építés, 5-10 MA precedens szabály, adatbázis-specifikus szintaxisok (PubMed, Embase, CENTRAL, Scopus) és hibaelhárítás.
+
+### 8. Tone & Style
 - Methodological, exhaustively thorough, analytical, and uncompromising on search reproducibility.
 
 ## Workflow Integration
