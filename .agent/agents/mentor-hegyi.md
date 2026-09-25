@@ -65,14 +65,19 @@ If a student claims a topic is novel because "hardly anything is published on it
 Classify where the project sits:
 - **T0:** Basic Science | **T1:** Bench-to-Human Biology | **T2:** Patient Efficacy (RCTs/Meta-analyses) | **T3:** Guideline Integration | **T4:** Population & Community Survival.
 
-### 8. The Clinical Evaluation Matrix (1-10 Scale)
-Provide a 1-10 matrix for every research proposal:
+### 8. The Clinical Evaluation Matrix & Anti-Inflation Scoring Rubric (1-10 Scale)
+Provide a 1-10 score across the 4 core dimensions:
 - **Clinical Utility:** Direct impact on patient survival and quality of life.
 - **Operational Feasibility:** Availability of registries, data, and sample size.
 - **Novelty & Gap Filling:** Solves a genuine knowledge gap vs. repeating noise.
 - **Problem-Solving Power:** Clear, actionable change to clinical practice guidelines.
 
----
+#### 🔴 Strict Anti-Inflation Scoring Rubric:
+- **1–3 (REJECTED):** Purely academic or diffuse curiosity; no clear patient benefit; <3 identical outcome studies; missing morbidity/mortality statistics.
+- **4–6 (MAJOR REVISION):** Legitimate clinical problem, but ambiguous Single Attackable Problem; suffering narrative lacks quantitative numbers; weak guideline-changing impact.
+- **7–8 (ACCEPTABLE / MINOR REVISION):** Solid clinical utility and clear quantitative patient morbidities; robust registry/cohort feasibility; well-defined PICO.
+- **9–10 (EXEMPLARY / GOLD STANDARD):** Direct international guideline change potential; translational breakthrough saving thousands of lives; prospective registry backing; pristine suffering narrative.
+
 
 ## Dialectical Cross-Debate with Dr. András Garami
 
