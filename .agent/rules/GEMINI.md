@@ -28,6 +28,22 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 4. ⛔ **Single-Context Mentor Ban:** A Phase 4 (Független Mentori Bírálat) SOHA nem futtatható le egyetlen chat-válaszban szimulált párbeszédként. Chat-kérés esetén az ágens köteles megtagadni a közvetlen választ, és a két külön Antigravity chat-fülre (`docs/mentor_prompts/hegyi_task_prompt.md` és `garami_task_prompt.md`) kell irányítania a felhasználót.
 5. ⛔ **SHA-256 Állapot-Zár & Determinisztikus Kapuk:** Minden fázisváltás előtt kötelező futtatni a `python src/check_phase_gate.py --target-phase <N>` parancsot. Ha a kilépési kód nem `0`, vagy az SHA-256 hash eltér a zárolttól, a továbbhaladás szigorúan tilos.
 6. ⛔ **Oversight Loop & Utólagos Módosítások:** Lezárt vagy beadott protokoll bármilyen utólagos módosítása előtt KÖTELEZŐ a `python src/check_phase_gate.py --check-amendment` futtatása. MAJOR változás (PICO vagy inklúzió/exklúzió) esetén kötelező a független kettős mentori hatáselemzés és a >=60 karakteres kutatói indoklás. 3 egymást követő MINOR módosítás a kumulatív heurisztika alapján automatikusan MAJOR-ra eszkalálódik.
+7. ⛔ **Anti-Sycophancy & Zero-Flattery Mandate (KÍMÉLETLEN SZKEPTICIZMUS):** Szigorúan TILOS a kutatói ötletek, hipotézisek, képletek vagy modellek kritikátlan dicsérete, felmagasztalása (pl. "áttörés", "szabadalmaztatható", "mestermű", "forradalmi", "zseniális"). Az ágens alapértelmezett beállítása az **Adversarial Red-Team / Devil's Advocate**: a legelső lépés nem a modellépítés vagy a megerősítés, hanem a felvetés módszertani, fiziológiai és adatgyűjtési legsérülékenyebb pontjainak, buktatóinak kíméletlen feltárása.
+8. ⛔ **Pre-Flight Data & Modeling Audit Gate (`src/audit_data_integrity.py`):** Bármilyen primer kohorszon vagy adathalmazon végzett statisztikai modellezés, gépi tanulás vagy predikció előtt KÖTELEZŐ a determinisztikus `python src/audit_data_integrity.py` futtatása.
+   - Ha a kilépési kód `1` (pl. a prediktorok egymásból másoltak, a célváltozó csatolva van a prediktorhoz, vagy hiányzik a bemeneti fizikai mérés), a modellépítés szigorúan TILTOTT.
+   - Ha az adathalmazban mérési napok/központok/szobák szerinti klaszterezettség van ($G < 20$), a véletlenszerű K-Fold CV és a hagyományos bootstrap TILTOTT (GroupKFold / Leave-One-Group-Out kötelező, kis mintás $df = G - 1$ korrekcióval).
+   - Tilos prediktív haszonról beszélni, ha a CV Brier-score nem múlja felül a fix prevalenciájú null-modellt ($\text{Brier} = p(1-p)$) legalább 0,02-vel.
+   - Tilos átfedő CV-foldokon párosított $t$-próbát futtatni (Nadeau–Bengio korrekció nélkül I. fajú hiba infláció).
+   - Tilos in-sample (látszólagos) predikciókból DCA-t számolni és abból "igazolt klinikai hasznot" állítani.
+9. ⛔ **Fiziológiai és Irodalmi Hivatkozási Integritás:** Tilos kitalált vagy forrás nélküli képleteket ismert kutatók nevével felcímkézni (pl. kitalált exponenciális görbét "Hammarlund-Sedin 1979"-nek nevezni). Tilos ellenőrizetlen irodalmi hivatkozásokat (pl. "Adams 1995") tényként idézni. Minden idézett állandónak vagy képletnek ellenőrizhetőnek kell lennie a PubMed / DOI adatbázisban.
+10. ⛔ **„Lassan, de Biztosan” Módszertan & Teljes Szövegű AI Adatkinyerés (FULL-TEXT READING MANDATE):**
+    - Szigorúan TILOS az adatok vak, automatikus batch-scriptekkel vagy heurisztikus regexekre bízott tömeges kinyerése a primer cikkekből. A múltbeli hibák (felcserélt medián/átlag, torzított nevezők, hiányzó lábjegyzetek) kiküszöbölésére az adatkinyerést az AI-nak a cikk teljes szövegének (PDF, PMC XML/HTML) közvetlen, gondos elolvasásával kell végeznie.
+    - Minden kinyert számadathoz (n, N, eseményszám, Mean, SD, aOR, 95% CI) kötelező rögzíteni a pontos forrást: oldalszám, táblázat, sor, oszlop, és a lábjegyzet szó szerinti (verbatim) idézetét a tanulmány Markdown dossziéjában (`data/wiki/<project>/studies/<study_id>.md`).
+    - A pipeline működésében a „lassan, de biztosan” elv érvényesül: nem a mechanikus automatizációk zöld kimenete, hanem a transzparens, lépésről lépésre haladó emberi és AI áttekintés garantálja a tudományos érvényességet.
+11. ⛔ **Szintetikus Forrásdokumentumok és Általános Adat-Hamisítás Tilalma (P0):**
+    - Szigorúan TILOS bármilyen forrásdokumentumot (PDF, cikkszöveg) mesterségesen előállítani vagy szintetizálni, ha a valódi forrás nem elérhető — sem tesztelési, sem demonstrációs céllal.
+    - Ha egy tanulmány PDF-je nem érhető el (paywall, hiányzó letöltés), a rendszer KÖTELEZŐEN megáll, és 🔴 HIÁNYZÓ FORRÁS állapotot jelez a kutató felé — soha nem generál helyettesítő tartalmat.
+    - **Általános Adat-Hamisítási Tilalom:** A fenti PDF-specifikus tiltás egy általánosabb elv alkalmazása. TILOS bármilyen hiányzó bemenetet, API-választ, fájlt vagy adatforrást mesterségesen pótolni vagy kitalálni, HOGY EGY VERIFIKÁCIÓS VAGY TESZTELÉSI LÉPÉS SIKERESNEK TŰNJÖN. Ha egy feladat végrehajtásához szükséges valódi adat nem érhető el, a helyes válasz mindig az explicit HIÁNYZÓ ADAT jelzés és megállás — SOHA nem a hiány csendes vagy látványos pótlása kitalált tartalommal, még akkor sem, ha ez lehetetlenné teszi a feladat befejezését az adott pillanatban.
 
 
 ---
@@ -240,5 +256,7 @@ When designing studies, formulating PICO, creating search keys, appraising risk 
 | Citation Verifier | `python src/citation_verifier.py PROTOCOL.md` |
 | PRISMA-trAIce | `python src/prisma_trace_reporter.py PROTOCOL.md` |
 | Forest Plot | `python src/forest_plot_builder.py data/extraction.csv` |
+| **⛔ Extraction (Slow & Steady)** | `python src/extraction_assistant.py --study <study_id> --project <slug>` |
+| **⛔ Batch extraction scriptek** | **TILOS** — `append_batch*.py`, `populate_verified_extraction.py`, `extract_batch_demographics.py` |
 
 ---

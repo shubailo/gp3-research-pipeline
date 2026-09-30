@@ -143,6 +143,12 @@ A kutatási tervek kidolgozása kötelezően az alábbi 5 fázison halad kereszt
   4. **Függő Adatok Kezelése:** Több küszöbérték vagy időpont esetén **Multilevel Meta-Analysis (Robust Variance Estimation — RVE)** alkalmazása kötelező; tilos a naiv összevonás.
   5. **CTM BoostR Adattisztítási Standard (`Data_extraction_template_v9.xlsx`):**
      - Csak számértékek az adatmezőkben; egyedi `Author Year` azonosító; nincsenek üres cellák/törések; azonos kimenet-nevek; mértékegység-konverziók külön oszlopban.
+  6. **Kötelező Teljes Szövegű AI Adatkinyerés (Full-Text AI Extraction Mandate & Blind Automation Ban):**
+     - ⛔ **Vak Automatizáció Tilalma:** Szigorúan TILOS a primer közleményekből származó adatok kinyerését felügyelet nélküli batch-scriptekre vagy heurisztikus regexekre bízni!
+     - **Közvetlen Forrásolvasás:** Az AI köteles a primer közlemények teljes szövegét (PDF, PMC XML/HTML) közvetlenül elolvasni és a táblázatokat kontextusukban értelmezni.
+     - **Szó Szerinti Provenance (Verbatim Sourcing):** Minden kinyert számadathoz (n, N, eseményszám, Mean, SD, aOR, 95% CI) kötelező rögzíteni a pontos forrást (oldalszám, táblázat, sor, oszlop, lábjegyzet) és a szó szerinti idézetet.
+     - **Populáció & Nevező Audit:** Explicit ellenőrzendő az ITT vs. Per-Protocol populáció, az elveszett követések és a táblázatos részösszegek egyezése.
+     - **Statisztikai Formátum-Integritás:** Szigorúan tilos mediánt (IQR) átlagként (SD) kinyerni Wan/Higgins konverzió nélkül; a mértékegységeket és időablakokat tételesen egyeztetni kell.
 
 ---
 
@@ -197,6 +203,35 @@ Bármilyen módszertani konfliktus esetén a prioritás szigorúan a következő
 > - **MAJOR változás** (PICO mag-elemek vagy inklúziós/exklúziós kritériumok módosulása) esetén tilos a közvetlen szerkesztés: kötelező a két külön chat-fülön elvégzendő Független Mentori Hatáselemzés (`docs/mentor_prompts/impact_assessment_prompt_template.md`), a $\ge 60$ karakteres kutatói indoklás és a főverzió-ugrás (`v1.x` ➔ `v2.0`).
 > - **Kumulatív Hatásbővülés Védelem:** A platform kiindulási heurisztikája szerint 3 egymást követő MINOR módosítás elérésekor a rendszer a 3. módosítást automatikusan MAJOR kategóriába minősíti át (Cumulative Escalation Trigger), kötelezővé téve az átfogó mentori hatáselemzést.
 > - Minden élesített módosítás kötelezően naplózandó a `PROTOCOL_AMENDMENTS.md` és `data/project_state.json` állományokban.
+
+### 5.6 Rendszerszintű P0 Alapszabály: Anti-Sycophancy & Zero-Flattery Mandate (Kíméletlen Szkepticizmus)
+> ⛔ **Zero-Flattery Szabályzat:** Szigorúan TILOS a kutatói hipotézisek, képletek vagy prediktív modellek kritikátlan dicsérete, felmagasztalása (pl. "áttörés", "szabadalmaztatható", "mestermű", "nagyszerű ötlet", "forradalmi").
+> - Az ágensek alapértelmezett szerepe az **Adversarial Red-Team / Devil's Advocate**: a legelső feladat a felvetés módszertani, fiziológiai és adatgyűjtési leggyengébb láncszemének kíméletlen felkutatása és azonnali, szépítés nélküli bemutatása.
+> - Bármilyen gépi tanulási vagy statisztikai modellezési javaslat esetén az ágens köteles először az elmélet cáfolatára törekedni (falszifikációs elv).
+
+### 5.7 Rendszerszintű P0 Alapszabály: Pre-Flight Data & Modeling Audit Gate (`src/audit_data_integrity.py`)
+> ⛔ **TRIPOD+AI Adat- és Modellintegritási Kapu:** Bármilyen primer kohorszon, beteginformációs adatbázison vagy klinikai adathalmazon végzett statisztikai modellezés, gépi tanulás vagy predikció előtt KÖTELEZŐ a determinisztikus `python src/audit_data_integrity.py` futtatása és naplózása.
+> 1. **Adateredet & Függetlenség:** Ha két prediktor egymásból van leképezve ($|r| > 0{,}99$), vagy a célváltozó csatolva van a prediktorhoz ($|r| > 0{,}70$), a modellépítés szigorúan TILTOTT.
+> 2. **Klaszterezettség ($G < 20$):** Ha az adatok mérési napok, szobák vagy központok szerint csoportosulnak, a véletlenszerű K-Fold CV TILTOTT (adatszivárgás); kizárólag GroupKFold vagy LOGO engedélyezett, és $G < 15$ esetén kötelező a kis mintás ($df = G - 1$) $t$-eloszlású korrekció.
+> 3. **Zéró-Modell / Null-Brier Trivialitási Küszöb:** Tilos prediktív haszonról beszélni, ha a CV Brier-score nem jobb a fix prevalenciát tippelő null-modellnél legalább 0,02-vel ($\text{Brier}_{\text{CV}} < p(1-p) - 0{,}02$).
+> 4. **Függetlenségi Szabály:** Tilos átfedő keresztvalidációs foldokon párosított $t$-próbát futtatni.
+> 5. **Out-of-Sample DCA:** Döntési görbe kizárólag out-of-fold predikciókra, a klinikailag indokolt küszöbtartományban ($p_t = 0{,}10 - 0{,}30$) számolható, vizsgálva a degenerált viselkedést.
+
+### 5.8 Rendszerszintű P0 Alapszabály: Fiziológiai és Irodalmi Hivatkozási Integritás
+> ⛔ **Hivatkozási és Képlet-Integritás:** Szigorúan tilos kitalált vagy közelítő képleteket ismert kutatók nevével felcímkézni (pl. nem létező exponenciális modellt "Hammarlund-Sedin 1979"-nek nevezni).
+> - Tilos ellenőrizetlen irodalmi hivatkozásokat (pl. "Adams 1995") tényként idézni.
+> - Minden beépített fizikai vagy fiziológiai állandónak ($H_c$, sugárzási emisszivitás, párolgási látens hő) kötelezően ellenőrzött, PubMed/DOI hivatkozással kell rendelkeznie.
+
+### 5.9 Rendszerszintű P0 Alapszabály: „Lassan, de Biztosan” Metodika és a Vak Automatizáció Tilalma
+> ⛔ **Slow & Steady Pacing & Full-Text AI Extraction:**
+> - A GP3 kutatási pipeline elutasítja a felületes „gate theater”-t (a kapuk automatikus scriptekkel történő mechanikus zöldre futtatását valódi megértés nélkül).
+> - Minden egyes kutatási fázis átlépése, keresési kulcs felépítése, poolozhatósági döntés és adatkinyerés lépésről lépésre, átlátható ember-AI együttműködésben történik.
+> - Az adatkinyerés során az AI nem futtathat vak batch-scripteket: köteles a primer forrásokat közvetlenül elolvasni, a táblázatokat és módszertani leírásokat értelmezni, és az adatokat a forrás pontos megjelölésével, szó szerinti idézetekkel alátámasztva rögzíteni a tanulmány-dossziékban (`data/wiki/<project>/studies/<study_id>.md`).
+
+### 5.10 Rendszerszintű P0 Alapszabály: Szintetikus Forrásdokumentumok és Általános Adat-Hamisítás Tilalma
+> ⛔ **Szintetikus Forrásdokumentum Tilalom:** Szigorúan TILOS bármilyen forrásdokumentumot (PDF, cikkszöveg) mesterségesen előállítani vagy szintetizálni, ha a valódi forrás nem elérhető — sem tesztelési, sem demonstrációs céllal. Ha egy tanulmány PDF-je nem érhető el (paywall, hiányzó letöltés), a rendszer KÖTELEZŐEN megáll, és 🔴 HIÁNYZÓ FORRÁS állapotot jelez a kutató felé — soha nem generál helyettesítő tartalmat.
+>
+> ⛔ **Általános Adat-Hamisítási Tilalom:** A fenti PDF-specifikus tiltás egy általánosabb elv alkalmazása. TILOS bármilyen hiányzó bemenetet, API-választ, fájlt vagy adatforrást mesterségesen pótolni vagy kitalálni, HOGY EGY VERIFIKÁCIÓS VAGY TESZTELÉSI LÉPÉS SIKERESNEK TŰNJÖN. Ha egy feladat végrehajtásához szükséges valódi adat nem érhető el, a helyes válasz mindig az explicit HIÁNYZÓ ADAT jelzés és megállás — SOHA nem a hiány csendes vagy látványos pótlása kitalált tartalommal, még akkor sem, ha ez lehetetlenné teszi a feladat befejezését az adott pillanatban.
 
 ---
 

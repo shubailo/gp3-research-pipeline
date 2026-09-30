@@ -98,9 +98,9 @@ A platformban a tudományos és transzlációs minőségbiztosítás két pillé
 ### 2.4 Hegyi Pontozási Rubrika és Anti-Inflációs Kalibráció
 
 Az LLM udvariassági torzításának kiküszöbölésére a bíráló az alábbi szigorú skálát köteles alkalmazni:
-- **1–3 Pont (REJECTED / Elfogadhatatlan):** Diffúz klinikai kérdésfeltevés; pusztán akadémiai kíváncsiság betegközpontú haszon nélkül; <3 azonos végpontú tanulmány (üres review); hiányzó morbiditási/mortalitási adatok.
-- **4–6 Pont (MAJOR REVISION / Lényegi átdolgozás szükséges):** Valós klinikai probléma, de homályos Single Attackable Problem; a szenvedés narratívája sablonos (hiányoznak a számszerű incidenciák és elkerülhető halálozási becslések); kérdéses a guideline-formáló hatás.
-- **7–8 Pont (ACCEPTABLE / Kisebb javítások):** Szilárd klinikai hasznosság és konkrét betegmorbiditások; tiszta T1–T4 besorolás; létező és elérhető betegregiszterek vagy kohorszok; jól definiált PICO végpontok.
+- **1–3 Pont (REJECTED / Elfogadhatatlan):** Diffúz klinikai kérdésfeltevés; pusztán akadémiai kíváncsiság betegközpontú haszon nélkül; <3 azonos végpontú tanulmány (üres review); hiányzó morbiditási/mortalitási adatok; olyan prediktív modell, amely keresztvalidációban nem veri meg a fix prevalenciájú null-modellt (a $\Delta\text{Brier} = \text{Brier}_{\text{null}} - \text{Brier}_{\text{model}}$ 95%-os klaszter-bootstrap konfidencia-intervalluma átfedi a nullát [$\text{CI}_{\text{low}} \le 0$]); a releváns küszöbtartományban ($p_t = 0{,}10 - 0{,}30$) Treat-All-nál rosszabb vagy degenerált DCA; zéró klinikai többletérték.
+- **4–6 Pont (MAJOR REVISION / Lényegi átdolgozás szükséges):** Valós klinikai probléma, de homályos Single Attackable Problem; a szenvedés narratívája sablonos (hiányoznak a számszerű incidenciák és elkerülhető halálozási becslések); kérdéses a guideline-formáló hatás; határeseti modellteljesítmény szűk mintán ($N < 100$), ahol a klinikai haszon bizonytalan.
+- **7–8 Pont (ACCEPTABLE / Kisebb javítások):** Szilárd klinikai hasznosság és konkrét betegmorbiditások; tiszta T1–T4 besorolás; létező és elérhető betegregiszterek vagy kohorszok; jól definiált PICO végpontok; igazolt out-of-sample prediktív többlet.
 - **9–10 Pont (EXEMPLARY / Arany Standard):** Közvetlen nemzetközi irányelv-módosító (guideline change) potenciál; transzlációs áttörés, amely mérhetően százezrek életét mentheti meg; prospektív multicentrikus regiszter-háttér; hibátlan szenvedés-narratíva.
 
 ---
@@ -143,10 +143,10 @@ Az LLM udvariassági torzításának kiküszöbölésére a bíráló az alábbi
 
 ### 3.4 Garami Pontozási Rubrika és Anti-Inflációs Kalibráció
 
-- **1–3 Pont (REJECTED / Elfogadhatatlan):** Hiányzó biológiai mechanizmus; korreláció tévesztése kauzalitással; kompartment-keveredés a mérésekben; kezeletlen magas heterogenitás ($I^2 > 75\%$); hiányzó zavaró változók.
-- **4–6 Pont (MAJOR REVISION / Lényegi átdolgozás szükséges):** Biológiailag plauzibilis koncepció, de a mérési eszközök nincsenek standardizálva; a kontrollcsoport kezelése tisztázatlan; hiányos Confounder Mátrix; hiányzó változók veszélyeztetik a regressziót.
-- **7–8 Pont (ACCEPTABLE / Kisebb javítások):** Teljes Sensor-Pathway-Effector triád; validált mérési eszközök; előre specifikált alcsoport- és szenzitivitás-elemzési terv a heterogenitás kivédésére; QUIPS / RoB 2 domének előzetesen feltárva.
-- **9–10 Pont (EXEMPLARY / Arany Standard):** Kikezdhetetlen élettani oki mechanizmus; kompartment-tiszta, arany standard mérési módszertan; szigorúan kontrollált zavaró változók; teljes módszertani védelem az ökológiai és aggregációs torzítások ellen.
+- **1–3 Pont (REJECTED / Elfogadhatatlan):** Hiányzó biológiai mechanizmus; korreláció tévesztése kauzalitással; kompartment-keveredés a mérésekben; kezeletlen magas heterogenitás ($I^2 > 75\%$); hiányzó zavaró változók; egymásból másolt/lineárisan átskálázott prediktorok; a célváltozó közvetlen vagy közvetett fizikai csatolása a prediktorhoz (pl. bőrhőmérséklet predikciója a bőrhőmérsékletből számolt hőveszteségből); mérési napok/központok szerinti kezeletlen klaszterezettség; kitalált fizikai vagy fiziológiai egyenletek és ellenőrizetlen hivatkozások.
+- **4–6 Pont (MAJOR REVISION / Lényegi átdolgozás szükséges):** Biológiailag plauzibilis koncepció, de a mérési eszközök nincsenek standardizálva; a kontrollcsoport kezelése tisztázatlan; hiányos Confounder Mátrix; hiányzó változók veszélyeztetik a regressziót; alacsony klaszterszám ($G < 15$) kis mintás korrekció nélkül.
+- **7–8 Pont (ACCEPTABLE / Kisebb javítások):** Teljes Sensor-Pathway-Effector triád; validált mérési eszközök; előre specifikált alcsoport- és szenzitivitás-elemzési terv a heterogenitás kivédésére; QUIPS / RoB 2 domének előzetesen feltárva; független mikrokörnyezeti szenzorok (levegő és páratartalom).
+- **9–10 Pont (EXEMPLARY / Arany Standard):** Kikezdhetetlen élettani oki mechanizmus; kompartment-tiszta, arany standard mérési módszertan; szigorúan kontrollált zavaró változók; teljes módszertani védelem az ökológiai és aggregációs torzítások ellen; dinamikus funkcionális tesztelés (pl. kontrollált hidegterhelés).
 
 ---
 

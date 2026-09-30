@@ -102,3 +102,30 @@ Before data can be analyzed in the CTM BoostR Room or handed to the statistician
 2. **Pilot Extraction (3–4 studies):** R1 and R2 extract 3–4 studies independently, then meet to calibrate definitions.
 3. **Interim Meeting at 20–30% Progress:** Mandatory checkpoint with SMS, supervisor, and statistician to audit data entry quality.
 4. **Completion Meeting:** Full reconciliation of R1 and R2 sheets, arbitration of discrepancies by R3, and formal data handover to the project statistician.
+
+---
+
+## 🛑 Kötelező Teljes Szövegű AI Adatkinyerési Protokoll (Vak Automatizáció Tilalma)
+
+A szisztematikus áttekintések és metaanalízisek leggyakoribb és legsúlyosabb módszertani hibái a felügyelet nélküli, automatizált adatkaparásból (scraping/regex extraction) és batch-szkriptekből erednek. A GP3 pipeline-ban ezért életbe lép a kötelező emberi/AI olvasási mandátum:
+
+### 1. A Vak Automatizáció Szigorú Tilalma
+Szigorúan tilos olyan felügyelet nélküli scripteket futtatni, amelyek a cikkek módszertanának, beválogatási kritériumainak és táblázat-lábjegyzeteinek értelmezése nélkül töltenek át számokat az extraction template-be.
+
+### 2. A 4-Lépcsős AI Olvasási & Kinyerési Protokoll
+Minden primer tanulmány feldolgozásakor az AI köteles közvetlenül elolvasni a közlemény teljes szövegét (PDF, PMC XML/HTML) az alábbi lépések szerint:
+
+1. **Methods szekció szisztematikus átolvasása:**
+   - Hogyan definiálták a beavatkozást/expozíciót?
+   - Milyen pontos időablakban mérték a kimenetelt? (Pl. 24 óra, kórházi elbocsátás, 18-24 hónapos követés).
+   - Mi a primer elemzési populáció (Intention-to-Treat vs. Per-Protocol / As-Treated)?
+2. **Table 1 (Demográfia) & Table 2/3 (Kimenetelek) közvetlen vizsgálata:**
+   - A táblázatban szereplő szám eseményszám ($n$), minta ($N$), vagy százalékos arány?
+   - A folytonos adat átlag ± SD, vagy medián (IQR / range)? (Wan / Higgins konverzió kötelező, tilos a mediánt SD-ként kezelni!).
+   - Mit mondanak a táblázat alatti apróbetűs lábjegyzetek (*, †, p-értékek, illesztett kovariánsok)?
+3. **Szó Szerinti Provenance (Idézet-rögzítés):**
+   - Minden egyes kitöltött cellához a tanulmány Markdown dossziéjában (`data/wiki/<project>/studies/<study_id>.md`) meg kell jelölni a pontos forrást:
+     *Példa:* `Table 2, row 3, column 'Intervention (n=45)': "Death before discharge: 12 (26.7%)"`
+4. **Kettős Ésszerűségi Ellenőrzés (Sanity Check):**
+   - A csoportok részösszege megegyezik-e a beválogatott összlétszámmal? ($N_I + N_C = N_{\text{total}}$).
+   - Ha a cikk nyers és korrigált becslést is közöl (crude vs. adjusted aOR/aHR), a két adat szigorúan külön oszlopba kerül-e?

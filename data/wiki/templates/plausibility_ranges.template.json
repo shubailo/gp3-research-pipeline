@@ -1,0 +1,31 @@
+{
+  "project": "<project_slug>",
+  "description": "Fiziológiai és klinikai plauzitási határértékek sablonja",
+  "version": "1.0",
+  "ranges": {
+    "gestational_age_weeks": {
+      "min": 20.0,
+      "max": 45.0,
+      "unit": "weeks",
+      "label": "Gesztációs kor"
+    },
+    "birth_weight_g": {
+      "min": 300.0,
+      "max": 6500.0,
+      "unit": "grams",
+      "label": "Születési súly"
+    },
+    "male_percentage": {
+      "min": 0.0,
+      "max": 100.0,
+      "unit": "%",
+      "label": "Férfi nem aránya"
+    },
+    "mortality_percentage": {
+      "min": 0.0,
+      "max": 100.0,
+      "unit": "%",
+      "label": "Mortalitás arány"
+    }
+  }
+}

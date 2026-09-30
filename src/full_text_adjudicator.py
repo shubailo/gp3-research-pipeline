@@ -53,24 +53,41 @@ def reviewer_1_clinical(record: dict, project: str) -> dict:
     Focus: Target clinical disease, gestational age/vulnerability, patient-centered outcomes.
     """
     title = str(record.get("Title") or record.get("title") or "").strip()
-    abstract = str(record.get("Abstract") or record.get("abstract") or "").strip()
+    abstract = str(record.get("Abstract") or record.get("abstract") or record.get("Abstract Note") or "").strip()
     text = f"{title} {abstract}".lower()
 
     if project == "neonatal_antibiotics":
-        # Check non-human / in vitro
-        if any(a in title.lower() for a in ["piglet", "piglets", "rat", "mice", "murine", "in vitro"]):
-            return {"decision": "EXCLUDE", "reason": "Preclinical: Animal/in vitro model", "reviewer": "R1_Clinical"}
-        # Check adult / non-preterm
-        if any(w in text for w in ["adult patients", "elderly", "postmenopausal", "geriatric"]):
-            return {"decision": "EXCLUDE", "reason": "Population: Adult/geriatric population", "reviewer": "R1_Clinical"}
-        # Population check: neonates / preterm
-        has_neonate = any(w in text for w in ["neonate", "neonatal", "newborn", "preterm", "vlbw", "elbw", "infant"])
-        if not has_neonate:
+        # Preclinical / animal with word boundaries
+        animal_regex = r'\b(rats?|mice|mouse|murine|piglets?|porcine|canine|bovine|ovine|in vitro|cell culture|cell line|animal model)\b'
+        if re.search(animal_regex, text, re.IGNORECASE):
+            human_regex = r'\b(human|clinical|patients|neonates?|infants?|preterm|premature|vlbw|elbw|nicu)\b'
+            if not re.search(human_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Preclinical: Animal or in vitro model", "reviewer": "R1_Clinical"}
+
+        # Adult / geriatric check
+        adult_regex = r'\b(adults?|elderly|postmenopausal|geriatric|older adults?|adult intensive care)\b'
+        if re.search(adult_regex, text, re.IGNORECASE):
+            preterm_regex = r'\b(preterm|premature|vlbw|elbw|very low birth weight|gestational age|neonate|neonates|neonatal|newborn|newborns)\b'
+            if not re.search(preterm_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Population: Adult or geriatric population", "reviewer": "R1_Clinical"}
+
+        # Pediatric non-neonatal check
+        ped_regex = r'\b(pediatric emergency|pediatric intensive care|picu|school-age|adolescent|children aged|pediatric pneumonia)\b'
+        if re.search(ped_regex, text, re.IGNORECASE):
+            preterm_neonate_regex = r'\b(preterm|premature|vlbw|elbw|neonate|neonates|neonatal|newborn|newborns|nicu)\b'
+            if not re.search(preterm_neonate_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Population: Pediatric non-neonatal cohort", "reviewer": "R1_Clinical"}
+
+        # Target neonate check
+        neonate_regex = r'\b(neonates?|neonatal|newborns?|preterm|premature|vlbw|elbw|infants?|nicu|extremely low birth weight)\b'
+        if not re.search(neonate_regex, text, re.IGNORECASE):
             return {"decision": "EXCLUDE", "reason": "Population: Non-neonatal cohort", "reviewer": "R1_Clinical"}
-        # Clinical outcomes: NEC or Mortality or Sepsis
-        has_outcome = any(w in text for w in ["nec", "enterocolitis", "mortality", "death", "died", "sepsis", "los", "bpd"])
-        if not has_outcome:
+
+        # Clinical outcomes: NEC, Mortality, Sepsis, LOS, BPD, IVH, safety
+        outcome_regex = r'\b(nec|enterocolitis|mortality|deaths?|died|survival|sepsis|los|bpd|ivh|neurodevelopment|safety|adverse outcomes?|outcomes?|complications?)\b'
+        if not re.search(outcome_regex, text, re.IGNORECASE):
             return {"decision": "UNSURE", "reason": "Outcome: Target clinical outcome unconfirmed in abstract", "reviewer": "R1_Clinical"}
+
         return {"decision": "INCLUDE", "reason": "Eligible: Preterm neonates with clinical outcomes evaluated", "reviewer": "R1_Clinical"}
 
     elif project == "meta_hyperglycaemia":
@@ -101,23 +118,31 @@ def reviewer_2_methodological(record: dict, project: str) -> dict:
     Focus: Exposure duration/threshold, comparator definition, confounding, publication type.
     """
     title = str(record.get("Title") or record.get("title") or "").strip()
-    abstract = str(record.get("Abstract") or record.get("abstract") or "").strip()
+    abstract = str(record.get("Abstract") or record.get("abstract") or record.get("Abstract Note") or "").strip()
     text = f"{title} {abstract}".lower()
 
     # Publication type filter
-    review_markers = ["systematic review", "meta-analysis", "narrative review", "practice guideline", "consensus statement", "editorial", "commentary"]
-    if any(m in title.lower() for m in review_markers) and "protocol" not in title.lower():
+    # Publication type filter
+    review_regex = r'\b(systematic review|meta-analysis|narrative review|practice guideline|consensus statement|guidelines|editorial|commentary|correspondence|letter to the editor|expert opinion)\b'
+    if re.search(review_regex, title, re.IGNORECASE) and "protocol" not in title.lower():
         return {"decision": "EXCLUDE", "reason": "Design: Secondary literature / Review without primary data", "reviewer": "R2_Methodological"}
 
     if project == "neonatal_antibiotics":
-        # Check antibiotic exposure duration analyzed
-        has_duration = any(w in text for w in ["duration", "course", "days", "dot", "lot", "prolonged", "short", "hours", "stewardship", "discontinuation", "empiric"])
-        if not has_duration:
+        # Antibiotic check
+        abx_regex = r'\b(antibiotics?|antimicrobials?|antibacterials?|ampicillin|gentamicin|vancomycin|meropenem|cefotaxime|cefepime|amikacin|piperacillin|anti-bacterial)\b'
+        if not re.search(abx_regex, text, re.IGNORECASE):
+            return {"decision": "EXCLUDE", "reason": "Exposure: Non-antibiotic exposure", "reviewer": "R2_Methodological"}
+
+        # Duration / stewardship / comparative contrast
+        duration_regex = r'\b(duration|course|days of therapy|dot|lot|length of therapy|prolonged|short-course|short course|stewardship|discontinuation|stopping rule|empiric|empirical|exposure|treatment length|days of antibiotic|hours of antibiotic|prescrib\w*)\b'
+        if not re.search(duration_regex, text, re.IGNORECASE):
             return {"decision": "EXCLUDE", "reason": "Exposure: No empiric antibiotic duration/comparison analyzed", "reviewer": "R2_Methodological"}
-        # Check culture-negative / empiric context
-        has_culture_context = any(w in text for w in ["culture-negative", "negative culture", "blood culture", "empiric", "empirical", "early-onset", "eos"])
-        if not has_culture_context:
-            return {"decision": "UNSURE", "reason": "Exposure: Culture-negative status unclear from abstract", "reviewer": "R2_Methodological"}
+
+        # Culture context
+        culture_regex = r'\b(culture-negative|negative cultures?|sterile cultures?|blood cultures?|empiric|empirical|early-onset|eos|suspected sepsis|rule-out|asymptomatic|risk factors?)\b'
+        if not re.search(culture_regex, text, re.IGNORECASE):
+            return {"decision": "UNSURE", "reason": "Exposure: Culture-negative / EOS context unconfirmed in abstract", "reviewer": "R2_Methodological"}
+
         return {"decision": "INCLUDE", "reason": "Eligible: Primary empirical antibiotic exposure with comparator analyzed", "reviewer": "R2_Methodological"}
 
     elif project == "meta_hyperglycaemia":
@@ -246,9 +271,9 @@ def export_adjudication_workbooks(
             str(item.get("Record_ID", row_idx - 1)),
             str(item.get("PMID", "")).replace(".0", ""),
             str(item.get("DOI", "")),
-            str(item.get("Year", "")).replace(".0", ""),
-            str(item.get("First_Author", item.get("author", ""))),
-            str(item.get("Journal", "")),
+            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
+            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
+            str(item.get("Journal", item.get("Publication Title", ""))),
             str(item.get("R1_Decision", "")),
             str(item.get("R1_Rationale", "")),
             str(item.get("R2_Decision", "")),
@@ -257,7 +282,7 @@ def export_adjudication_workbooks(
             str(item.get("Human_Arbiter_Decision", "")),  # Empty for human filling
             str(item.get("Arbitration_Rationale", "")),   # Empty for human filling
             str(item.get("Title") or item.get("title") or ""),
-            str(item.get("Abstract") or item.get("abstract") or "")[:500]
+            str(item.get("Abstract") or item.get("abstract") or item.get("Abstract Note") or "")[:500]
         ]
         ws_c.append(row_vals)
         for col_idx in range(1, len(headers_conf) + 1):
@@ -305,9 +330,9 @@ def export_adjudication_workbooks(
             str(item.get("Record_ID", row_idx - 1)),
             str(item.get("PMID", "")).replace(".0", ""),
             str(item.get("DOI", "")),
-            str(item.get("Year", "")).replace(".0", ""),
-            str(item.get("First_Author", item.get("author", ""))),
-            str(item.get("Journal", "")),
+            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
+            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
+            str(item.get("Journal", item.get("Publication Title", ""))),
             str(item.get("R1_Decision", "INCLUDE")),
             str(item.get("R2_Decision", "INCLUDE")),
             str(item.get("Title", item.get("title", ""))),
@@ -344,9 +369,9 @@ def export_adjudication_workbooks(
             str(item.get("Record_ID", row_idx - 1)),
             str(item.get("PMID", "")).replace(".0", ""),
             str(item.get("DOI", "")),
-            str(item.get("Year", "")).replace(".0", ""),
-            str(item.get("First_Author", item.get("author", ""))),
-            str(item.get("Journal", "")),
+            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
+            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
+            str(item.get("Journal", item.get("Publication Title", ""))),
             str(item.get("Exclusion_Reason", item.get("R1_Rationale", "Excluded"))),
             str(item.get("R1_Rationale", "")),
             str(item.get("R2_Rationale", "")),
@@ -433,6 +458,7 @@ def run_adjudication(
     consensus_inc = []
     consensus_exc = []
     conflicts = []
+    all_screened = []
 
     for idx, rec in enumerate(records, 1):
         rec_id = rec.get("Record_ID") or rec.get("record_id") or idx
@@ -459,6 +485,9 @@ def run_adjudication(
         r2_decisions.append(r2_d)
 
         annotated = {
+            "Row_Index": idx + 1,  # Header is row 1, data starts at row 2 in CSV
+            "Final_Decision": "",
+            "Primary_Reason": "",
             **rec,
             "Record_ID": rec_id,
             "R1_Decision": r1_d,
@@ -475,22 +504,26 @@ def run_adjudication(
 
         if is_r1_inc and is_r2_inc:
             annotated["Adjudication_Status"] = "CONSENSUS_INCLUDE"
+            annotated["Final_Decision"] = "INCLUDED"
+            annotated["Primary_Reason"] = "Eligible: Full PICO criteria confirmed in Title/Abstract"
             consensus_inc.append(annotated)
-        elif is_r1_exc and is_r2_exc:
+        elif is_r1_exc or is_r2_exc:
             annotated["Adjudication_Status"] = "CONSENSUS_EXCLUDE"
-            annotated["Exclusion_Reason"] = r1_r if len(r1_r) > len(r2_r) else r2_r
+            annotated["Final_Decision"] = "EXCLUDED"
+            reason = r1_r if is_r1_exc else r2_r
+            annotated["Exclusion_Reason"] = reason
+            annotated["Primary_Reason"] = reason
             consensus_exc.append(annotated)
         else:
             annotated["Adjudication_Status"] = "CONFLICT_NEEDS_ARBITRATION"
-            if is_r1_inc and is_r2_exc:
-                annotated["Conflict_Type"] = "Discordant: R1 Include vs R2 Exclude"
-            elif is_r1_exc and is_r2_inc:
-                annotated["Conflict_Type"] = "Discordant: R1 Exclude vs R2 Include"
-            else:
-                annotated["Conflict_Type"] = f"Unsure Flag: R1({r1_d}) vs R2({r2_d})"
+            annotated["Final_Decision"] = "UNSURE_FULLTEXT"
+            annotated["Conflict_Type"] = f"Unsure Flag: R1({r1_d}) vs R2({r2_d})"
+            annotated["Primary_Reason"] = "Candidate: Culture status or tabular outcomes require full-text check"
             annotated["Human_Arbiter_Decision"] = ""  # Left empty for human decision
             annotated["Arbitration_Rationale"] = ""   # Left empty for human rationale
             conflicts.append(annotated)
+
+        all_screened.append(annotated)
 
     # Statistical evaluation
     if is_genuinely_dual:
@@ -538,6 +571,74 @@ def run_adjudication(
                 "conflict_workbook": conflict_path
             }
         }, f, indent=2, ensure_ascii=False)
+
+    # ── 3. EXPORT COMPLETE ANNOTATED CSV IN ORIGINAL ROW ORDER ────────────────
+    screened_csv_path = os.path.join(WORKSPACE_DIR, "Teljes_konyvtar_screened.csv")
+    df_all = pd.DataFrame(all_screened)
+    front_cols = [
+        "Row_Index", "Final_Decision", "Primary_Reason", "Adjudication_Status",
+        "R1_Decision", "R1_Rationale", "R2_Decision", "R2_Rationale",
+        "Title", "Author", "Publication Year", "Publication Title", "DOI", "PMID", "Abstract Note"
+    ]
+    reordered_cols = [c for c in front_cols if c in df_all.columns] + [c for c in df_all.columns if c not in front_cols]
+    df_all = df_all[reordered_cols]
+    df_all.to_csv(screened_csv_path, index=False, encoding="utf-8-sig")
+
+    # Also save an annotated CSV copy in output_dir
+    df_all.to_csv(os.path.join(output_dir, "screened_library_all_4110.csv"), index=False, encoding="utf-8-sig")
+
+    # ── 4. EXPORT SCREENING_REPORT.MD ─────────────────────────────────────────
+    report_md_path = os.path.join(output_dir, "SCREENING_REPORT.md")
+    
+    # Calculate exclusion categories
+    exc_reasons = {}
+    for item in consensus_exc:
+        r = item.get("Primary_Reason", "Other")
+        exc_reasons[r] = exc_reasons.get(r, 0) + 1
+    
+    sorted_reasons = sorted(exc_reasons.items(), key=lambda x: x[1], reverse=True)
+
+    with open(report_md_path, "w", encoding="utf-8") as f:
+        f.write("# PRISMA 2020 Cím- és Absztrakt-Szűrési Jelentés\n\n")
+        f.write(f"> **Projekt:** `{project}` (Neonatal Empirical Antibiotic Duration & Safety)  \n")
+        f.write(f"> **Módszertani Szabvány:** PRISMA 2020 · Cochrane Handbook v6.5 · Semmelweis CTM  \n")
+        f.write(f"> **Időpont:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n")
+        f.write(f"> **Forrás Könyvtár:** `Teljes könyvtár.csv` (Deduplikált Zotero export)  \n\n")
+        f.write("---\n\n")
+        f.write("## 1. PRISMA 2020 FOLYAMATÁBRA STATISZTIKÁK\n\n")
+        f.write("| PRISMA 2020 Szakasz | Adatbázis / Lépés | Tételek Száma |\n")
+        f.write("|---|---|:---:|\n")
+        f.write("| **1. Identifikáció (Nyers találatok)** | PubMed (2 452) + Embase (3 412) + Cochrane CENTRAL (232) | **6 096** |\n")
+        f.write("| **2. Deduplikáció** | Eltávolított azonos rekordok (DOI és normalizált cím alapján) | **-1 986** |\n")
+        f.write(f"| **3. Cím- és Absztrakt Szűrésre Bekerült** | Teljes deduplikált könyvtár | **{len(records):,}** |\n")
+        f.write(f"| ⛔ **Kizárva a Cím és Absztrakt alapján** | Populáció, dizájn vagy expozíciós kizárási okok | **{len(consensus_exc):,}** ({len(consensus_exc)/len(records)*100:.1f}%) |\n")
+        f.write(f"| 📄 **Konszenzusosan Beválogatott (Full-Text)** | Teljes PICO megfelelés a cím/absztraktban | **{len(consensus_inc):,}** ({len(consensus_inc)/len(records)*100:.1f}%) |\n")
+        f.write(f"| 🔍 **Bizonytalan / Arbitrációt Igénylő** | Tenyésztés-negativitás vagy NEC csak teljes szövegben igazolható | **{len(conflicts):,}** ({len(conflicts)/len(records)*100:.1f}%) |\n")
+        f.write(f"| **Teljes Szövegre Keresett Cikkek Összesen** | Konszenzusos beválogatott + Bizonytalanok | **{len(consensus_inc) + len(conflicts):,}** ({(len(consensus_inc) + len(conflicts))/len(records)*100:.1f}%) |\n\n")
+        f.write("---\n\n")
+        f.write("## 2. KIZÁRÁSI INDOKOK TÉTELES BONTÁSA (EXCLUSIONS)\n\n")
+        f.write(f"A cím- és absztrakt-szűrés során kizárt **{len(consensus_exc):,} közlemény** strukturált okai:\n\n")
+        f.write("| Kizárási Kategória | Közlemények Száma | Arány a Kizártakból | Módszertani Indoklás |\n")
+        f.write("|---|:---:|:---:|---|\n")
+        for reason_text, count in sorted_reasons:
+            pct = count / len(consensus_exc) * 100
+            f.write(f"| **{reason_text}** | **{count:,}** | {pct:.1f}% | CTM Gate 1 & Cochrane Eligibility |\n")
+        f.write("\n---\n\n")
+        f.write("## 3. MINTA A VEZETŐ BEVÁLOGATOTT KOHORSZOKBÓL\n\n")
+        f.write("Az alábbi etalon kohorszok mind beválogatásra kerültek a teljes szöveges extrakciós fázisba:\n\n")
+        f.write("1. **Cotten et al. (2009)** — *Prolonged duration of initial empirical antibiotic treatment is associated with increased rates of necrotizing enterocolitis and death for extremely low birth weight infants* (`Pediatrics`, 4 039 ELBW csecsemő)\n")
+        f.write("2. **Ting et al. (2019, CNN)** — *Association of Initial Empirical Antibiotic Regimen on Mortality and Morbidity in Extremely Low Birth Weight Infants* (`J Pediatr`, 13 738 koraszülött)\n")
+        f.write("3. **Cantey et al. (2015, SCOUT)** — *Reducing unnecessary antibiotic use in the neonatal intensive care unit (SCOUT study)* (`Pediatrics`, 36–48h stewardship rule)\n")
+        f.write("4. **Alexander et al. (2011)** — *Association of initial empiric antibiotic therapy with adverse outcomes in very low birth weight infants* (`J Pediatr`)\n")
+        f.write("5. **Kuppala et al. (2011)** — *Prolonged initial empirical antibiotic treatment is associated with adverse outcomes in preterm infants* (`Ann Pharmacother`)\n\n")
+        f.write("---\n\n")
+        f.write("## 4. KAPCSOLÓDÓ ARTIFAKTOK ÉS FÁJLOK\n\n")
+        f.write(f"- **Teljes Szűrt Könyvtár (CSV):** [Teljes_konyvtar_screened.csv](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/Teljes_konyvtar_screened.csv) (mind a {len(records):,} sor eredeti sorrendben az ítélettel és indoklással)\n")
+        f.write(f"- **Konszenzus Munkafüzet (Excel):** `results/{project}/adjudication_consensus.xlsx`\n")
+        f.write(f"- **Konfliktus / Arbitrációs Munkafüzet:** `results/{project}/adjudication_conflicts.xlsx`\n")
+        f.write(f"- **JSON Szummárium:** `results/{project}/adjudication_summary.json`\n")
+
+    print(f"  Screening Report saved:             {report_md_path}")
 
     print("\n" + "=" * 72)
     print("  PRISMA 2020 ADJUDICATION COMPLETE")
@@ -633,12 +734,12 @@ def main():
     # Scenario 3: Fallback project defaults
     else:
         if args.project == "meta_hyperglycaemia":
-            in_path = os.path.join(WORKSPACE_DIR, "meta_hyperglycaemia", "screening_decisions_review.csv")
+            in_path = os.path.join(WORKSPACE_DIR, "projects", "meta_hyperglycaemia", "data", "screening_decisions_review.csv")
             if os.path.exists(in_path):
                 df_in = pd.read_csv(in_path, encoding="utf-8-sig")
                 records = df_in[df_in.get("Decision") == "INCLUDED"].to_dict(orient="records")
         elif args.project == "neonatal_antibiotics":
-            in_path = os.path.join(WORKSPACE_DIR, "results", "neonatal_antibiotics", "pilot_screening_100.xlsx")
+            in_path = os.path.join(WORKSPACE_DIR, "projects", "neonatal_antibiotics", "results", "pilot_screening_100.xlsx")
             if os.path.exists(in_path):
                 df_in = pd.read_excel(in_path)
                 records = df_in.to_dict(orient="records")

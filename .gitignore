@@ -25,18 +25,39 @@ data/reviews/*.json
 # (Ezek a fájlok FIZIKAILAG megmaradnak a gépeden, de nem kerülnek GitHubra)
 # -------------------------------------------------------------
 
-# 1. Saját kutatási alprojektek könyvtárai
-meta_hyperglycaemia/
-balasko/
-results/
+# 1. Saját kutatási alprojektek könyvtárai (új projects/ hierarchia szerint)
+projects/*/pdfs/
+projects/*/results/
+projects/*/data/*.pdf
+projects/*/data/*.xlsx
+projects/*/data/*.csv
+projects/*/data/*.json
+projects/*/data/tmp_*
+projects/*/annotated_pdfs/
 garami_publications/
 hegyi_publications/
 TM/
+
+# Kivételek a projects mappában (megőrzendő protokollok, döntésnaplók és konfigurációk):
+!projects/*/PROTOCOL.md
+!projects/*/PROTOCOL_AMENDMENTS.md
+!projects/*/plausibility_ranges.json
+!projects/*/_resolutions/
+!projects/*/_resolutions/**
+!projects/*/data/*.template.json
 
 # 2. Egyedi tanulmány dossziék (a methodology, templates és resources marad!)
 data/wiki/*/studies/
 data/wiki/neonatal_antibiotics/
 data/wiki/meta_hyperglycaemia/
+
+# Helyi annotált PDF-ek kizárása (nagyméretű lokális binárisok)
+data/wiki/*/studies/annotated_pdfs/
+data/pdfs/annotated/
+
+# Kivétel: Döntésnaplók (_resolutions) megőrzése a verziókövetésben
+!data/wiki/*/studies/_resolutions/
+!data/wiki/*/studies/_resolutions/**
 
 # 3. Élő kutatási állapotok (a sablonok: PROJECT.template.md és project_state.template.json mennek ki!)
 PROJECT.md
@@ -77,3 +98,4 @@ src/generate_hyperglycaemia_wiki.py
 # Kivételek: a kanonikus CTM sablonok és PDF útmutatók a wikihez kellenek!
 !data/wiki/templates/*.xlsx
 !data/wiki/resources/*.pdf
+!tests/fixtures/*.xlsx

@@ -26,7 +26,7 @@ if sys.platform == "win32":
 
 # Output Paths
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(WORKSPACE_DIR, "meta_hyperglycaemia")
+OUTPUT_DIR = os.path.join(WORKSPACE_DIR, "projects", "meta_hyperglycaemia", "data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 XLSX_PATH = os.path.join(OUTPUT_DIR, "screening_decisions_review.xlsx")

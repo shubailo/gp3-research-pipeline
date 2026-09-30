@@ -26,8 +26,14 @@ from typing import Dict, Any, Tuple, List, Optional
 
 # Windows console encoding fix
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+# Ensure src directory is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 DEFAULT_STATE_FILE = os.path.join(
@@ -70,13 +76,16 @@ class Colors:
     RESET = "\033[0m"
 
 
-def compute_hypothesis_hash(pico: Dict[str, str]) -> str:
-    """Computes SHA-256 hash from core PICO elements."""
+def compute_hypothesis_hash(pico: Dict[str, str], inclusion: str = "", exclusion: str = "", cohort_filter: str = "") -> str:
+    """Computes SHA-256 hash from core PICO elements, eligibility criteria, and programmatic cohort filter."""
     p = pico.get("population", "").strip()
     i = pico.get("intervention_exposure", "").strip()
     c = pico.get("comparator", "").strip()
     o = pico.get("outcome", "").strip()
-    serialized = f"{p}|{i}|{c}|{o}"
+    parts = [p, i, c, o]
+    if inclusion or exclusion or cohort_filter:
+        parts.extend([inclusion.strip(), exclusion.strip(), cohort_filter.strip()])
+    serialized = "|".join(parts)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
@@ -216,7 +225,8 @@ def classify_amendment(
     # Zárolt kulcsmezők halmaza
     locked_core_keys = {
         "population", "intervention_exposure", "comparator", "outcome",
-        "inclusion_criteria", "exclusion_criteria", "locked_hypothesis_hash_mismatch"
+        "inclusion_criteria", "exclusion_criteria", "locked_hypothesis_hash_mismatch",
+        "cohort_filter", "target_threshold"
     }
     is_core_modified = any(f in locked_core_keys for f in changed_fields)
 
@@ -362,17 +372,54 @@ def evaluate_phase_2(gates: Dict[str, Any]) -> List[Tuple[bool, str, str]]:
     ]
 
 
-def evaluate_phase_3(gates: Dict[str, Any]) -> List[Tuple[bool, str, str]]:
+def evaluate_phase_3(gates: Dict[str, Any], project_id: Optional[str] = None) -> List[Tuple[bool, str, str]]:
     p3 = gates.get("phase_3", {})
     study_count = p3.get("identical_outcome_study_count", 0)
     poolable_ok = study_count >= 3
     pool_msg = f"Azonos végpontú tanulmányok száma: {study_count} db (KÖTELEZŐ MINIMUM: >= 3 db)"
     
-    return [
+    results = [
         (poolable_ok, "Poolability Gate (Biostatisztikai Megvalósíthatóság)", pool_msg),
         (p3.get("confounder_matrix_defined", False), "Előre Specifikált Confounder Mátrix", "Biológiai zavaró tényezők és illesztett becslések prioritása"),
         (p3.get("missing_covariates_under_30_pct", False), "Hiányzó Kovariánsok Feasibility Korlátja", "<70% riportolású változók kizárva a meta-regresszióból")
     ]
+    
+    # Pre-Flight Data & Modeling Audit Gate (ha kohorsz/empirikus adatok vannak jelen)
+    if p3.get("has_cohort_data", False) or p3.get("data_integrity_audit_required", False):
+        audit_passed = p3.get("data_integrity_audit_passed", False)
+        audit_msg = "Audit sikeresen lefutott (TRIPOD+AI, szivárgás és kollinearitás kizárva)" if audit_passed else "Audit kötelező vagy megbukott! Futtasd: python src/audit_data_integrity.py"
+        results.append((audit_passed, "Pre-Flight Adatintegritási és Modellezési Kapu (audit_data_integrity.py)", audit_msg))
+        
+    # CTM BoostR Extraction Data Linter Gate (Phase 3 -> 4 kötelező feltétel)
+    wb_path = None
+    if project_id:
+        try:
+            from validate_extraction_data import resolve_project_workbook
+            wb_path = resolve_project_workbook(project_id)
+        except Exception:
+            pass
+
+    if wb_path and os.path.exists(wb_path):
+        wb_name = os.path.basename(wb_path)
+        from validate_extraction_data import ExtractionLinter
+        linter = ExtractionLinter(filepath=wb_path)
+        summary = linter.run()
+        lint_ok = summary["passed"]
+        score = summary["total_score"]
+        g1_score = summary.get("gate_scores", {}).get("gate1_numeric", {}).get("score", 25)
+        if lint_ok:
+            lint_msg = f"Jóváhagyva ({score}/100 pont, Gate 1: {g1_score}/25 pont (nincs végzetes hiba)): {wb_name}"
+        else:
+            fatal_note = " (Gate 1 Végzetes Hiba!)" if summary.get("gate1_fatal") else ""
+            lint_msg = f"Megbukott ({score}/100 pont{fatal_note}): {wb_name}. Futtasd: python src/validate_extraction_data.py --file {wb_path}"
+        results.append((lint_ok, "CTM BoostR Adatkinyerési Linter (validate_extraction_data.py)", lint_msg))
+    elif p3.get("extraction_data_audit_passed") is not None:
+        passed = p3.get("extraction_data_audit_passed", False)
+        score = p3.get("extraction_data_linter_score", "N/A")
+        msg = f"Előzetesen auditálva ({score}/100 pont)" if passed else "Audit megbukott! Futtasd: python src/validate_extraction_data.py"
+        results.append((passed, "CTM BoostR Adatkinyerési Linter (validate_extraction_data.py)", msg))
+
+    return results
 
 
 def evaluate_phase_4(gates: Dict[str, Any], current_hash: str, locked_hash: str) -> List[Tuple[bool, str, str]]:
@@ -417,7 +464,7 @@ def evaluate_phase_5(gates: Dict[str, Any]) -> List[Tuple[bool, str, str]]:
     ]
 
 
-def check_target_phase(project_data: Dict[str, Any], target_phase: int) -> Tuple[bool, List[Tuple[str, List[Tuple[bool, str, str]]]]]:
+def check_target_phase(project_data: Dict[str, Any], target_phase: int, project_id: Optional[str] = None) -> Tuple[bool, List[Tuple[str, List[Tuple[bool, str, str]]]]]:
     gates = project_data.get("gates", {})
     pico = project_data.get("pico", {})
     current_hash = compute_hypothesis_hash(pico)
@@ -442,7 +489,7 @@ def check_target_phase(project_data: Dict[str, Any], target_phase: int) -> Tuple
 
     # Target Phase 4 requires Phase 3 to pass
     if target_phase >= 4:
-        p3_res = evaluate_phase_3(gates)
+        p3_res = evaluate_phase_3(gates, project_id=project_id)
         passed = all(r[0] for r in p3_res)
         results.append(("Phase 3: Megvalósíthatóság & Poolozhatóság", p3_res))
         if not passed: all_passed = False
@@ -683,6 +730,19 @@ def main():
     parser.add_argument("--assessment-file", type=str, help="Mentori hatáselemzéseket tartalmazó JSON fájl elérési útja")
     parser.add_argument("--apply", action="store_true", help="Érvényes módosítás esetén az állapot mentése és naplózása a PROTOCOL_AMENDMENTS.md-be")
 
+    # Pre-Flight Data & Modeling Audit CLI kapcsolók
+    parser.add_argument("--check-data", action="store_true", help="Pre-Flight Adatintegritási Audit futtatása (audit_data_integrity.py)")
+    parser.add_argument("--data-file", type=str, help="Adatfájl (CSV/Excel) elérési útja az auditáláshoz")
+    parser.add_argument("--sheet-name", type=str, default=None, help="Excel munkalap neve (opcionális)")
+    parser.add_argument("--target-col", type=str, help="Célváltozó oszlopneve")
+    parser.add_argument("--threshold", type=float, default=None, help="Binarizálási küszöbérték (pl. 36.0)")
+    parser.add_argument("--predictors", type=str, help="Prediktor oszlopok vesszővel elválasztva")
+    parser.add_argument("--group-col", type=str, default=None, help="Klaszterező/csoportosító oszlop (opcionális)")
+
+    # CTM BoostR Data Extraction Audit CLI kapcsolók
+    parser.add_argument("--check-extraction", action="store_true", help="CTM BoostR Adatkinyerési Linter futtatása (validate_extraction_data.py)")
+    parser.add_argument("--extraction-file", type=str, default=None, help="Excel adatkinyerési fájl elérési útja")
+
     args = parser.parse_args()
 
     try:
@@ -699,6 +759,44 @@ def main():
         sys.exit(1)
 
     proj = projects[project_id]
+
+    # Pre-Flight Data Audit ág
+    if args.check_data:
+        from audit_data_integrity import audit_data, load_dataset
+        if not args.data_file or not args.target_col or not args.predictors:
+            print(f"{Colors.RED}⛔ HIBA: A --check-data futtatásához kötelező a --data-file, --target-col és --predictors megadása!{Colors.RESET}")
+            sys.exit(1)
+        df = load_dataset(args.data_file, sheet_name=args.sheet_name)
+        preds = [p.strip() for p in args.predictors.split(',')]
+        audit_code = audit_data(df, args.target_col, preds, args.group_col, args.threshold)
+        
+        if args.apply:
+            p3 = proj.setdefault("gates", {}).setdefault("phase_3", {})
+            p3["has_cohort_data"] = True
+            p3["data_integrity_audit_passed"] = (audit_code == 0)
+            data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            save_state(args.state_file, data)
+            print(f"\n{Colors.GREEN}✔ Projekt fáziskapu állapota frissítve a data/project_state.json-ban!{Colors.RESET}")
+        sys.exit(audit_code)
+
+    # CTM BoostR Data Extraction Audit ág
+    if args.check_extraction:
+        from validate_extraction_data import resolve_project_workbook, ExtractionLinter
+        wb_path = args.extraction_file or resolve_project_workbook(project_id)
+        if not wb_path or not os.path.exists(wb_path):
+            print(f"{Colors.RED}⛔ HIBA: Nem található adatkinyerési tábla a(z) '{project_id}' projekthez!{Colors.RESET}")
+            sys.exit(1)
+        linter = ExtractionLinter(filepath=wb_path, strict=False)
+        code = linter.print_report()
+        summary = linter.get_summary()
+        if args.apply:
+            p3 = proj.setdefault("gates", {}).setdefault("phase_3", {})
+            p3["extraction_data_audit_passed"] = (code == 0)
+            p3["extraction_data_linter_score"] = summary["total_score"]
+            data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            save_state(args.state_file, data)
+            print(f"\n{Colors.GREEN}✔ Projekt fáziskapu állapota frissítve a data/project_state.json-ban!{Colors.RESET}")
+        sys.exit(code)
 
     # Oversight Loop ág
     if args.check_amendment:
@@ -733,7 +831,7 @@ def main():
     print(f"PICO Hash: {Colors.CYAN}{current_hash[:12]}...{Colors.RESET} | Zárolt Hash: {Colors.CYAN}{(proj.get('locked_hypothesis_hash') or 'NINCS')[:12]}...{Colors.RESET}")
     print("=" * 72)
 
-    passed, results = check_target_phase(proj, target_phase)
+    passed, results = check_target_phase(proj, target_phase, project_id=project_id)
 
     for phase_name, checks in results:
         phase_ok = all(c[0] for c in checks)
