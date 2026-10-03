@@ -19,53 +19,47 @@ archive/
 
 # Sensitive intermediate review data
 data/reviews/*.json
+data/analysis_preregistration.json
 
 # -------------------------------------------------------------
 # GP3 PIPELINE REPOSITORIUM KIZÁRÁSOK: SAJÁT ALPROJEKTEK & ADATOK
 # (Ezek a fájlok FIZIKAILAG megmaradnak a gépeden, de nem kerülnek GitHubra)
 # -------------------------------------------------------------
 
-# 1. Saját kutatási alprojektek könyvtárai (új projects/ hierarchia szerint)
-projects/*/pdfs/
-projects/*/results/
-projects/*/data/*.pdf
-projects/*/data/*.xlsx
-projects/*/data/*.csv
-projects/*/data/*.json
-projects/*/data/tmp_*
-projects/*/annotated_pdfs/
-garami_publications/
-hegyi_publications/
-TM/
-
-# Kivételek a projects mappában (megőrzendő protokollok, döntésnaplók és konfigurációk):
-!projects/*/PROTOCOL.md
-!projects/*/PROTOCOL_AMENDMENTS.md
-!projects/*/plausibility_ranges.json
-!projects/*/_resolutions/
-!projects/*/_resolutions/**
-!projects/*/data/*.template.json
+# 1. Saját kutatási alprojektek könyvtárai — TELJES KIZÁRÁS
+projects/
 
 # 2. Egyedi tanulmány dossziék (a methodology, templates és resources marad!)
 data/wiki/*/studies/
 data/wiki/neonatal_antibiotics/
 data/wiki/meta_hyperglycaemia/
 
-# Helyi annotált PDF-ek kizárása (nagyméretű lokális binárisok)
-data/wiki/*/studies/annotated_pdfs/
+# Helyi PDF-ek és fulltext XML-ek kizárása (nagy méretű lokális binárisok / projekt-adatok)
+data/pdfs/
 data/pdfs/annotated/
+data/study_fulltexts/
 
-# Kivétel: Döntésnaplók (_resolutions) megőrzése a verziókövetésben
-!data/wiki/*/studies/_resolutions/
-!data/wiki/*/studies/_resolutions/**
-
-# 3. Élő kutatási állapotok (a sablonok: PROJECT.template.md és project_state.template.json mennek ki!)
+# 3. Élő kutatási állapotok (a sablonok mennek ki!)
 PROJECT.md
+PROTOCOL.md
+PROTOCOL_AMENDMENTS.md
 data/project_state.json
 
-# 4. Egyedi kutatási tervek és PROSPERO piszkozatok
+# 4. Projekt-specifikus dokumentumok a root-ban
+AUDIT_REPORT.md
+PROJECT_AUDIT.md
+SEARCH_KEY_IMPLEMENTATION_LOG.md
+SEARCH_KEY_PROVENANCE_PLAN.md
+PROJECTS_AND_EXTRACTION_LINT_PLAN.md
+VALIDATE_EXTRACTION_IMPLEMENTATION_LOG.md
+medbuddy_master_source.md
+metabolism_outliers.md
+scratch_table1.txt
+
+# 5. Egyedi kutatási tervek és PROSPERO piszkozatok
 docs/PROSPERO-draft-*
 docs/PLAN-*
+docs/mentor_prompts/AMD-*
 docs/SEARCH-*
 docs/meta_analysis_protocol_*
 docs/NEOTHERM-ADJUVANT-PLAN.md
@@ -74,21 +68,54 @@ docs/hyperglycemia_th_presentation_outline.md
 docs/claude_assessment.md
 docs/project_history/
 
-# 5. Nyers kutatási adatok, naplók és korai piszkozatok
-metabolism_outliers.md
-PROJECT_AUDIT.md
-PROTOCOL.md
-medbuddy_master_source.md
-Search Key Guide v2.6.pdf
+# 6. Nyers keresési export fájlok a root-ban (.ris, .nbib — projekt-specifikus)
+*.ris
+*.nbib
 
-# 6. Nyers szöveges/pdf kutatási adatok és egyedi scriptek
+# 7. Eredmény- és riport könyvtárak (projekt-specifikus outputok)
+results/
+reports/
+
+# 8. Nyers szöveges/pdf kutatási adatok a data/ könyvtárban
 data/*.txt
 data/*.pdf
+
+# 9. Mentor PhD dolgozata és egyéb személyes anyagok
+data/garami.andras_142_23_doktori_mu.pdf
+garami_publications/
+hegyi_publications/
+TM/
+
+# 10. Projekt-specifikus src/ scriptek
+# (Az alábbiak NEM részei a pipeline magnak — project-adathoz kötöttek)
 src/run_search.py
 src/extract_thesis.py
 src/generate_hyperglycaemia_wiki.py
+src/build_fulltext_master_325.py
+src/build_master_audit_workbook.py
+src/build_pico_candidates_excel.py
+src/build_screening_workbook.py
+src/calculate_and_plot_neonat.py
+src/clean_meta_antibiotics_pdfs.py
+src/compute_thermal_index.py
+src/deduplicate_antibiotics_corpus.py
+src/extract_new_candidates_shortlist.py
+src/generate_clean_dossiers.py
+src/generate_pdf_dossier.py
+src/generate_pico_candidates_audit_workbook.py
+src/lint_scientific_style.py
+src/preregister_analysis.py
+src/read_pdf_text.py
+src/run_antibiotics_search.py
+src/run_extended_meta_analysis.py
+src/run_isolated_audit.py
+src/screen_downloaded_fulltexts.py
+src/update_excel_with_local_status.py
+src/verify_claims.py
+src/annotate_and_sync_studies.py
+src/audit_data_integrity.py
 
-# 7. Globális fájlformátum kizárások (kivéve a wiki sablonokat és erőforrásokat!)
+# 11. Globális fájlformátum kizárások (kivéve a wiki sablonokat és erőforrásokat!)
 *.csv
 *.xls
 *.xlsm

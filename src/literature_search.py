@@ -16,32 +16,38 @@ from white_spot_analyzer import WhiteSpotAnalyzer
 import io
 
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Irodalomkutató és Fehér Folt (White Spot) Elemző – PubMed + Cochrane.",
+        description="Irodalomkutató, Fehér Folt (White Spot) és Keresőkulcs Provenance Elemző – PubMed + Cochrane.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Példák:
-  # Keresés és mentés (az AI ezután elemzi a találatokat):
+  # Keresés és mentés (az AI ezután elemezheti a találatokat):
   python literature_search.py "neonatal hypothermia AND outcome"
 
-  # Keresés + az absztraktok kinyomtatása (AI közvetlen elemzéshez):
+  # Keresés + absztraktok és kulcsszavak kinyomtatása stdout-ra:
   python literature_search.py "TRPA1 AND inflammation" --analyze
+
+  # Precedens metaanalízisek vizsgálata adott PMID-k alapján:
+  python literature_search.py --pmids 23440789,37316160,39501186 --enrich-provenance
 
   # Meglévő eredmény fájl betöltése és kinyomtatása elemzéshez:
   python literature_search.py --from-file results/search_20260912_135015.json
-
-  # Visszatekintési ablak és max találat beállítása:
-  python literature_search.py "propofol AND newborn" --years 10 --max-results 50
         """
     )
     parser.add_argument(
         "query", type=str, nargs="?",
         help="Keresési kifejezés (PubMed szintaxis: pl. 'neonatal hypothermia AND outcome')"
+    )
+    parser.add_argument(
+        "--pmids", type=str, default="",
+        help="Vesszővel elválasztott PMID lista közvetlen lekéréshez és precedens-analízishez"
     )
     parser.add_argument(
         "--max-results", type=int, default=100,
@@ -61,7 +67,11 @@ Példák:
     )
     parser.add_argument(
         "--analyze", action="store_true",
-        help="Kinyomtatja az absztraktokat stdout-ra – így az AI azonnal elemezheti"
+        help="Kinyomtatja az absztraktokat és metaadatokat stdout-ra – így az AI azonnal elemezheti"
+    )
+    parser.add_argument(
+        "--enrich-provenance", action="store_true",
+        help="Futtatja a 3 szintű (Gold/Silver/Bronze) keresőkulcs-provenance besorolást és PMC ellenőrzést"
     )
     parser.add_argument(
         "--from-file", type=str, metavar="JSON_PATH",
@@ -70,6 +80,67 @@ Példák:
 
     args = parser.parse_args()
     analyzer = WhiteSpotAnalyzer()
+    pubmed   = PubMedClient(email=args.email)
+
+    # ── Mode: direct PMID list analysis ──────────────────────────────────────
+    if args.pmids:
+        pmid_list = [p.strip() for p in args.pmids.split(",") if p.strip()]
+        print("="*68)
+        print(" 🔍 PRECEDENS METAANALÍZIS PROVENANCE ÉS ADATGAZDAGÍTÁS")
+        print("="*68)
+        print(f"Lekérdezett PMID-k ({len(pmid_list)} db): {', '.join(pmid_list)}\n")
+
+        raw_pubs = pubmed.get_by_pmids(pmid_list)
+        if not raw_pubs:
+            print("[Hiba] Egyik megadott PMID sem tölthető le az NCBI-ről.")
+            sys.exit(1)
+
+        print(f">>> {len(raw_pubs)} db publikáció sikeresen letöltve a PubMedről.")
+        print(">>> Provenance hierarchia értékelése (Cochrane -> PMC OA -> MeSH -> Text)...")
+        enriched_pubs = pubmed.enrich_with_provenance(raw_pubs, check_pmc_oa=True)
+
+        print("\n" + "="*68)
+        print(" 📋 KANONIKUS PRECEDENS TÁBLÁZAT (CTM SEARCH KEY GUIDE)")
+        print("="*68)
+        table_md = pubmed.format_precedent_table(enriched_pubs)
+        print(table_md)
+        print("\n" + "="*68)
+        print(" 🔬 RÉSZLETES PRECEDENS DOKUMENTÁCIÓ")
+        print("="*68)
+        for pub in enriched_pubs:
+            prov = pub.get("provenance", {})
+            print(f"\n[PMID: {pub.get('id')}] {pub.get('title')}")
+            print(f"  • Folyóirat  : {pub.get('journal', 'Ismeretlen')}")
+            print(f"  • PMCID      : {pub.get('pmcid') or 'Nincs (Paywall / Non-PMC)'}")
+            print(f"  • Provenance : {prov.get('provenance_label')} ({prov.get('tier')} Tier)")
+            print(f"  • Forrás leírás: {prov.get('description')}")
+            
+            # Print MeSH terms
+            mesh = pub.get("mesh_headings", [])
+            major_mesh = [m["descriptor"] for m in mesh if m.get("is_major")]
+            all_mesh = [m["descriptor"] for m in mesh]
+            print(f"  • MeSH száma : {len(mesh)} (Kiemelt Major: {len(major_mesh)})")
+            if major_mesh:
+                print(f"  • Kiemelt MeSH: {', '.join(major_mesh)}")
+            elif all_mesh:
+                print(f"  • MeSH list  : {', '.join(all_mesh[:6])}")
+                
+            # Print Keywords
+            kws = [k["keyword"] for k in pub.get("author_keywords", [])]
+            if kws:
+                print(f"  • Szerzői KW : {', '.join(kws)}")
+                
+            if prov.get("search_strategy_snippet"):
+                print(f"  • Kinyert keresési stratégia részlet:\n    \"{prov.get('search_strategy_snippet')}\"")
+
+        # Save results
+        os.makedirs(args.output, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        json_path = os.path.join(args.output, f"precedents_{timestamp}.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(enriched_pubs, f, indent=2, ensure_ascii=False)
+        print(f"\n💾 Mentve: {json_path}")
+        return
 
     # ── Mode: load from existing JSON ────────────────────────────────────────
     if args.from_file:
@@ -82,7 +153,7 @@ Példák:
 
     # ── Mode: new search ─────────────────────────────────────────────────────
     if not args.query:
-        parser.error("Adj meg keresési kifejezést, vagy használd a --from-file opciót.")
+        parser.error("Adj meg keresési kifejezést (--pmids, keresési string, vagy --from-file).")
 
     print("="*62)
     print(" 🔎 Irodalomkutató és Fehér Folt (White Spot) Elemző")
@@ -90,7 +161,6 @@ Példák:
     print(f"Keresési kifejezés : {args.query}")
     print(f"Visszatekintési ablak: {args.years} év\n")
 
-    pubmed   = PubMedClient(email=args.email)
     cochrane = CochraneClient(email=args.email)
     all_publications = []
 
@@ -106,6 +176,11 @@ Példák:
 
     print("\n>>> Elemzés és deduplikáció...")
     result = analyzer.analyze(all_publications, args.query, lookback_years=args.years)
+
+    # If provenance enrichment requested
+    if args.enrich_provenance:
+        print(">>> Provenance és MeSH gazdagítás futtatása...")
+        result["publications"] = pubmed.enrich_with_provenance(result["publications"], check_pmc_oa=True)
 
     # ── Display summary ───────────────────────────────────────────────────────
     quant = result["quantitative_analysis"]
@@ -152,7 +227,12 @@ Példák:
         f.write(json.dumps(quant.get("year_distribution", {}), indent=2, sort_keys=True))
         f.write("\n```\n\n")
 
-        f.write("## 3. Kvalitatív Elemzés (AI)\n\n")
+        if args.enrich_provenance:
+            f.write("## 3. Precedens & Provenance Elemzés\n\n")
+            f.write(pubmed.format_precedent_table(result["publications"][:15]))
+            f.write("\n\n")
+
+        f.write("## 4. Kvalitatív Elemzés (AI)\n\n")
         f.write("*A kvalitatív elemzést az AI (Claude) végzi az absztraktok alapján.*\n")
         f.write("*Futtasd: `python literature_search.py --from-file <json_path>` és add át az AI-nak.*\n\n")
 
@@ -160,7 +240,6 @@ Példák:
     print(f"   📄 {json_path}  (nyers JSON – AI elemzéshez)")
     print(f"   📝 {md_path}  (kvantitatív összefoglaló)")
 
-    # ── If --analyze: print digest for immediate AI reading ───────────────────
     if args.analyze:
         print("\n" + "─"*62)
         print("  📋 ABSZTRAKT DIGEST (AI ELEMZÉSHEZ)")

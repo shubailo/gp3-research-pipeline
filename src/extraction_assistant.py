@@ -272,10 +272,48 @@ def check_source_availability(pmid: Optional[str], project: str, study_id: str) 
     if pmcid:
         return ("PMC_XML", pmcid, f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/")
 
+    # Master Excel lookup fallback ha a study_id nincs a fájlnévben
+    master_excel_paths = [
+        os.path.join(WORKSPACE_DIR, "results", project, "fulltext_screening_master_325.xlsx"),
+        os.path.join(WORKSPACE_DIR, "results", "neonatal_antibiotics", "fulltext_screening_master_325.xlsx"),
+        os.path.join(WORKSPACE_DIR, "data", "fulltext_screening_master_325.xlsx"),
+    ]
+    for mep in master_excel_paths:
+        if os.path.exists(mep):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(mep, data_only=True)
+                ws = wb.active
+                clean_sid = study_id.lower().replace("_", " ").replace("-", " ")
+                for r in range(2, ws.max_row + 1):
+                    mid = str(ws.cell(row=r, column=1).value or "").strip()
+                    author = str(ws.cell(row=r, column=3).value or "").strip().lower()
+                    year = str(ws.cell(row=r, column=4).value or "").strip()
+                    fname = str(ws.cell(row=r, column=14).value or "").strip()
+                    p_mid = str(ws.cell(row=r, column=9).value or "").strip()
+                    
+                    matches = False
+                    if mid and (mid == study_id or f"study_{int(mid):03d}" == study_id.lower() or f"study_{mid}" == study_id.lower()):
+                        matches = True
+                    elif author and author in clean_sid:
+                        matches = True
+                    
+                    if matches:
+                        if not pmid and p_mid and p_mid != "None":
+                            pmid = p_mid
+                        if fname and fname.endswith(".pdf"):
+                            for sub in ["meta_antibiotics", project, ""]:
+                                cand = os.path.join(WORKSPACE_DIR, "data", "pdfs", sub, fname)
+                                if os.path.exists(cand):
+                                    return ("PDF_FALLBACK", cand, None)
+            except Exception:
+                pass
+
     # Fallback helyi PDF keresése
     candidate_paths = [
         os.path.join(WORKSPACE_DIR, "projects", project, "pdfs", f"{study_id}.pdf"),
         os.path.join(WORKSPACE_DIR, "data", "pdfs", project, f"{study_id}.pdf"),
+        os.path.join(WORKSPACE_DIR, "data", "pdfs", "meta_antibiotics", f"{study_id}.pdf"),
         os.path.join(WORKSPACE_DIR, "data", "pdfs", f"{study_id}.pdf"),
         os.path.join(WORKSPACE_DIR, project, f"{study_id}.pdf"),
     ]
@@ -293,7 +331,7 @@ def check_source_availability(pmid: Optional[str], project: str, study_id: str) 
         if os.path.exists(pdfs_dir):
             for root, _, files in os.walk(pdfs_dir):
                 for f in files:
-                    if f.lower().startswith(study_id.lower()) and f.endswith(".pdf"):
+                    if (f.lower().startswith(study_id.lower()) or study_id.lower() in f.lower()) and f.endswith(".pdf"):
                         return ("PDF_FALLBACK", os.path.join(root, f), None)
 
     return ("MISSING", None, None)
@@ -429,7 +467,8 @@ def annotate_pdf_with_highlights(
 def generate_provenance_log_markdown(
     highlights: List[Dict[str, Any]],
     source_type: str,
-    source_ref: Optional[str]
+    source_ref: Optional[str],
+    project: str = "neonatal_antibiotics"
 ) -> str:
     """Legenerálja a Markdown dosszié Section 8: Provenance Log tartalmát."""
     lines = []
@@ -769,7 +808,7 @@ def run_highlight_pipeline(
         print(f"  ⚠️ PDF forrás nem áll rendelkezésre a fizikai annotáláshoz.")
 
     # 7. Markdown Dosszié Section 8 frissítése
-    prov_log_md = generate_provenance_log_markdown(highlights, source_type, source_path or source_url)
+    prov_log_md = generate_provenance_log_markdown(highlights, source_type, source_path or source_url, project=project)
     
     if os.path.exists(dossier_path):
         with open(dossier_path, "r", encoding="utf-8") as f:
