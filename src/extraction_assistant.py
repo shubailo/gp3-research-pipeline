@@ -38,6 +38,11 @@ import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 
+try:
+    from template_prompt_generator import TemplatePromptGenerator, ExtractionResponseValidator
+except ImportError:
+    from src.template_prompt_generator import TemplatePromptGenerator, ExtractionResponseValidator
+
 # Safe Windows UTF-8 reconfigure
 if sys.platform == "win32":
     try:
@@ -520,7 +525,8 @@ def run_highlight_pipeline(
     study_id: str,
     project: str,
     interactive: bool = True,
-    auto_resolve: bool = False
+    auto_resolve: bool = False,
+    ingest_file: Optional[str] = None
 ):
     print(BANNER)
     print(f"  Projekt:   {project}")
@@ -565,8 +571,32 @@ def run_highlight_pipeline(
         print(f"  🧠 Korábbi Kutatói Döntésnapló: {len(saved_resolutions)} feloldott döntés betöltve")
 
     # 4. Tanulmány-specifikus adatkinyerési tételek összeállítása (CTM BoostR és PICO szerint)
-    # Ali 2024 esetén a Brain Dev. 2024;46(8):262-267 primer adatai:
-    highlights = [
+    highlights = []
+    effective_ingest = ingest_file
+    if not effective_ingest:
+        auto_candidate = os.path.join(WORKSPACE_DIR, "data", "wiki", project, "studies", "_extractions", f"{study_id}.json")
+        if os.path.exists(auto_candidate):
+            effective_ingest = auto_candidate
+
+    if effective_ingest and os.path.exists(effective_ingest):
+        print(f"  📥 Strukturált LLM Kinyerés beolvasása: {effective_ingest}")
+        try:
+            with open(effective_ingest, "r", encoding="utf-8") as f:
+                llm_data = json.load(f)
+            validator = ExtractionResponseValidator(project)
+            v_res = validator.validate(llm_data)
+            if v_res["is_valid"]:
+                print(f"     ✅ BoostR Validáció SIKERES ({v_res['summary_stats']['total_extracted']} mező)")
+                highlights = v_res["highlights"]
+            else:
+                print(f"     ⚠️ BoostR Validáció végzetes hibát talált: {v_res['fatal_errors']}")
+                print(f"     Fallback minták alkalmazása...")
+        except Exception as e:
+            print(f"     ⚠️ Hiba a kinyerési JSON olvasásakor: {e}")
+
+    if not highlights:
+        # Fallback minta adatok (Ali 2024 esetén a Brain Dev. 2024;46(8):262-267 primer adatai):
+        highlights = [
         {
             "variable_name": "Gestational age (weeks)",
             "category": "POPULATION_DEMO",
@@ -860,14 +890,54 @@ def main():
     parser.add_argument("--highlight", action="store_true", help="Színkódolt PDF annotáció és Provenance Log generálás")
     parser.add_argument("--auto-resolve", action="store_true", help="Alapértelmezett feloldás a bizonytalanságoknál (nem interaktív)")
     parser.add_argument("--non-interactive", action="store_true", help="Nem interaktív futtatás")
+    parser.add_argument("--generate-prompt", action="store_true", help="Template-alapú LLM prompt generálása az Excel sablonból")
+    parser.add_argument("--output-prompt", default=None, help="Mentési útvonal a generált promptnak (.md)")
+    parser.add_argument("--ingest-extraction", default=None, help="JSON kinyerési fájl betöltése és validálása a kiemeléshez")
     args = parser.parse_args()
+
+    if args.generate_prompt:
+        print(BANNER)
+        print(f"  Projekt:   {args.project}")
+        print(f"  Tanulmány: {args.study}")
+        print("  Mód:       --generate-prompt (Template-alapú Prompt Generálás)")
+        
+        # Forrás szöveg keresése
+        source_type, source_path, source_url = check_source_availability(None, args.project, args.study)
+        full_text = ""
+        if source_type in ("PDF_FALLBACK", "PMC_XML") and source_path and os.path.exists(source_path):
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(source_path)
+                pages_text = [p.extract_text() or "" for p in reader.pages]
+                full_text = "\n\n--- PAGE BREAK ---\n\n".join(pages_text)
+                print(f"  📄 Forrás PDF beolvasva: {len(reader.pages)} oldal ({len(full_text)} karakter)")
+            except Exception as e:
+                print(f"  ⚠️ Nem sikerült a PDF szövegének kinyerése: {e}")
+        
+        out_prompt_path = args.output_prompt
+        if not out_prompt_path:
+            prompts_dir = os.path.join(WORKSPACE_DIR, "projects", args.project, "prompts")
+            os.makedirs(prompts_dir, exist_ok=True)
+            out_prompt_path = os.path.join(prompts_dir, f"{args.study}_prompt.md")
+        
+        gen = TemplatePromptGenerator(args.project, args.study)
+        study_meta = {
+            "first_author": args.study.split("_")[0],
+            "year": args.study.split("_")[-1] if "_" in args.study else ""
+        }
+        saved_p = gen.save_prompt_markdown(out_prompt_path, full_text or "[FULL-TEXT PLACEHOLDER]", study_meta)
+        print(f"  ✅ CTM BoostR Prompt Sikeresen Elmentve:")
+        print(f"     Elérési út: {saved_p}")
+        print(f"     Mezők száma a sablonból: {sum(len(v) for v in gen.parsed_template.values())} db")
+        return
 
     if args.highlight:
         run_highlight_pipeline(
             study_id=args.study,
             project=args.project,
             interactive=not (args.non_interactive or args.auto_resolve),
-            auto_resolve=args.auto_resolve
+            auto_resolve=args.auto_resolve,
+            ingest_file=args.ingest_extraction
         )
     else:
         print(BANNER)
@@ -878,6 +948,7 @@ def main():
         print()
         print("  ⛔ FONTOS: Ez a script CSAK üres sablont hoz létre kiemelés nélkül.")
         print("     A kiemeléshez és provenance generáláshoz add meg a --highlight kapcsolót!")
+        print("     A template-alapú prompt generáláshoz add meg a --generate-prompt kapcsolót!")
         output_path = create_dosszié(args.study, args.project, output_dir)
         print(f"  ✅ Dosszié sablon létrehozva: {output_path}")
 
