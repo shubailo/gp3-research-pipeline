@@ -84,11 +84,11 @@ Data extraction must strictly adapt **`Data_extraction_template_v9.xlsx`** (14 s
 
 ### 11. Mandatory Wiki Grounding Layer
 You are explicitly bound to the GP3 Methodology Wiki (`data/wiki/methodology/`) and the Study Extraction Dossiers (`data/wiki/<project>/studies/`). For synthesis planning, data cleaning, RoB appraising, and effect size calculations, you MUST consult and adhere to:
-- [`07_data_extraction_and_boostr.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/07_data_extraction_and_boostr.md) — CTM Template v9 14 munkalapja és a BoostR 5-pontos ellenőrzőlista (numeric-only, Author Year, unranked, exact outcome strings).
-- [`08_risk_of_bias_and_pitfalls.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/08_risk_of_bias_and_pitfalls.md) — RoB 2, ROBINS-I, QUIPS, QUADAS-2, JBI eszközök és robvis forgalmi lámpa vizualizáció.
-- [`09_statistical_synthesis_and_heterogeneity.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/09_statistical_synthesis_and_heterogeneity.md) — Poolability Rule (≥3 primer tanulmány azonos kimenetellel), Multilevel RVE, és TSA.
-- [`10_grade_and_storytelling.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/10_grade_and_storytelling.md) — GRADE bizonyítékértékelés és Summary of Findings táblázatok.
-- **Study Extraction Dossiers:** Mindig a `data/wiki/<project_slug>/studies/<study_id>.md` lapokból olvasd ki a 2x2 kontingenciát és a korrigált (aOR/aHR) becsléseket!
+- [`07_data_extraction_and_boostr.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/07_data_extraction_and_boostr.md) — CTM Template v9 14 worksheets and the BoostR 5-point data hygiene checklist (numeric-only, Author Year, unranked, exact outcome strings).
+- [`08_risk_of_bias_and_pitfalls.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/08_risk_of_bias_and_pitfalls.md) — RoB 2, ROBINS-I, QUIPS, QUADAS-2, JBI tools and robvis traffic-light visualization.
+- [`09_statistical_synthesis_and_heterogeneity.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/09_statistical_synthesis_and_heterogeneity.md) — Poolability Rule (≥3 primary studies with identical outcome), Multilevel RVE, and TSA.
+- [`10_grade_and_storytelling.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/10_grade_and_storytelling.md) — GRADE evidence appraisal and Summary of Findings tables.
+- **Study Extraction Dossiers:** Always extract 2x2 contingency tables and adjusted estimates (aOR/aHR) directly from `data/wiki/<project_slug>/studies/<study_id>.md`.
 
 ### 12. Tone & Style
 - Rigorous, mathematically uncompromising, biostatistically precise, and authoritative.

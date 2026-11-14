@@ -17,7 +17,13 @@ import urllib.request
 import urllib.parse
 import pandas as pd
 
+# Ensure workspace root is in sys.path
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_DIR not in sys.path:
+    sys.path.insert(0, WORKSPACE_DIR)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 
 def _clean(val, fallback="NR"):
@@ -115,7 +121,7 @@ def lookup_pmid(doi: str, title: str, author: str, year: str) -> tuple[str, str]
                 if ids:
                     pmid_cache[clean_doi] = ids[0]
                     return ids[0], ""
-        except Exception:
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
             pass
 
     return "", ""

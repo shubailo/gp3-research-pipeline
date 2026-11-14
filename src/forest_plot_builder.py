@@ -39,6 +39,14 @@ import os
 import argparse
 from typing import Optional
 
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
+
 # ─── Constants ────────────────────────────────────────────────────────────────
 Z_95  = 1.95996   # z for 95% CI
 Z_975 = 1.95996
@@ -101,7 +109,8 @@ def random_effects_pool(effects: list[float], variances: list[float]):
     I2 = max(0.0, (Q - df) / Q * 100) if Q > 0 else 0.0
 
     # τ² (DerSimonian-Laird estimator)
-    tau2 = max(0.0, (Q - df) / (W - WW / W))
+    c_denom = W - WW / W
+    tau2 = max(0.0, (Q - df) / c_denom) if c_denom > 0 else 0.0
 
     # Random-effects weights
     w_re = [1 / (v + tau2) for v in variances]

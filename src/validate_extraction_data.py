@@ -37,13 +37,13 @@ import json
 import argparse
 from typing import Dict, Any, List, Tuple, Optional, Set
 
-# Windows console encoding fix
-if sys.platform == "win32":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 try:
     import openpyxl

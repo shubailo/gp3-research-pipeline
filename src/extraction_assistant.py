@@ -43,17 +43,12 @@ try:
 except ImportError:
     from src.template_prompt_generator import TemplatePromptGenerator, ExtractionResponseValidator
 
-# Safe Windows UTF-8 reconfigure
-if sys.platform == "win32":
-    try:
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        if hasattr(sys.stderr, 'reconfigure'):
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_DIR not in sys.path:
+    sys.path.insert(0, WORKSPACE_DIR)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 # 6+1 CTM BoostR Szemantikai Színpaletta (RGB normalizált PyMuPDF formátumhoz)
 COLOR_PALETTE = {
@@ -311,7 +306,7 @@ def check_source_availability(pmid: Optional[str], project: str, study_id: str) 
                                 cand = os.path.join(WORKSPACE_DIR, "data", "pdfs", sub, fname)
                                 if os.path.exists(cand):
                                     return ("PDF_FALLBACK", cand, None)
-            except Exception:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 pass
 
     # Fallback helyi PDF keresése
@@ -360,7 +355,7 @@ def load_plausibility_ranges(project: str) -> Dict[str, Any]:
             with open(template_ranges_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data.get("ranges", {})
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     return {}
@@ -636,23 +631,21 @@ def run_highlight_pipeline(
             "status": "AUTO_ACCEPTED"
         },
         {
-            "variable_name": "Therapeutic Hypothermia Protocol",
+            "variable_name": "Intervention / Clinical Protocol",
             "category": "INTERVENTION_EXPOSURE",
-            "search_span": "target temperature of 33.5°C maintained for 72 hours",
-            "extracted_value": "33.5°C for 72h",
-            "num_val": 33.5,
-            "range_key": "target_temperature_c",
-            "ctm_field": "Intervention: target_temperature_c, cooling_duration_h",
+            "search_span": "target clinical protocol maintained for prespecified duration",
+            "extracted_value": "Active Protocol / Regimen",
+            "ctm_field": "Intervention: protocol_description",
             "page": 1,
             "location": "Page 1, Methods section",
             "confidence": "HIGH",
             "status": "AUTO_ACCEPTED"
         },
         {
-            "variable_name": "Normoglycemia Comparator Protocol",
+            "variable_name": "Comparator / Control Protocol",
             "category": "COMPARATOR_CONTROL",
-            "search_span": "Normoglycemia control was defined as blood glucose 70 to 180 mg/dL",
-            "extracted_value": "70 to 180 mg/dL",
+            "search_span": "Standard care comparator protocol",
+            "extracted_value": "Standard of Care Comparator",
             "ctm_field": "Intervention: comparator_definition",
             "page": 1,
             "location": "Page 1, Methods section",

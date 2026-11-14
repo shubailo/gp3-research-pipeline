@@ -30,15 +30,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-# Safe Windows UTF-8 reconfigure without stream closure
-if sys.platform == "win32":
-    try:
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        if hasattr(sys.stderr, 'reconfigure'):
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -164,54 +162,7 @@ def reviewer_2_methodological(record: dict, project: str) -> dict:
 # 2. STATISTICAL AGREEMENT (COHEN'S KAPPA)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def calculate_cohens_kappa(r1_decisions: list[str], r2_decisions: list[str]) -> dict:
-    """
-    Computes Cohen's kappa (κ) between two independent reviewers.
-    Binary categorization: POSITIVE (INCLUDE) vs NEGATIVE (EXCLUDE / UNSURE).
-    """
-    if len(r1_decisions) != len(r2_decisions) or len(r1_decisions) == 0:
-        return {"kappa": 0.0, "observed_agreement": 0.0, "interpretation": "Insufficient data"}
-
-    # Binary normalization: INCLUDE -> 1, others -> 0
-    bin_r1 = [1 if str(d).upper().startswith("INC") else 0 for d in r1_decisions]
-    bin_r2 = [1 if str(d).upper().startswith("INC") else 0 for d in r2_decisions]
-
-    total = len(bin_r1)
-    a = sum(1 for i in range(total) if bin_r1[i] == 1 and bin_r2[i] == 1)  # Both Include
-    b = sum(1 for i in range(total) if bin_r1[i] == 1 and bin_r2[i] == 0)  # R1 Inc, R2 Exc
-    c = sum(1 for i in range(total) if bin_r1[i] == 0 and bin_r2[i] == 1)  # R1 Exc, R2 Inc
-    d = sum(1 for i in range(total) if bin_r1[i] == 0 and bin_r2[i] == 0)  # Both Exclude
-
-    po = (a + d) / total
-    pe = (((a + b) / total) * ((a + c) / total)) + (((c + d) / total) * ((b + d) / total))
-
-    if pe >= 1.0:
-        kappa = 1.0
-    else:
-        kappa = (po - pe) / (1.0 - pe)
-
-    if kappa >= 0.81:
-        interp = "Almost Perfect Agreement (PRISMA Gold Standard)"
-    elif kappa >= 0.61:
-        interp = "Substantial Agreement (Standard Methodological Rigor)"
-    elif kappa >= 0.41:
-        interp = "Moderate Agreement (Reviewer Calibration Recommended)"
-    elif kappa >= 0.21:
-        interp = "Fair Agreement (Significant Inter-Reviewer Divergence)"
-    else:
-        interp = "Poor Agreement (Urgent Arbitration Required)"
-
-    return {
-        "total_screened": total,
-        "both_include": a,
-        "r1_only_include": b,
-        "r2_only_include": c,
-        "both_exclude": d,
-        "observed_agreement_pct": round(po * 100, 2),
-        "chance_agreement_pct": round(pe * 100, 2),
-        "cohens_kappa": round(kappa, 3),
-        "interpretation": interp
-    }
+from src.utils.math_stats import calculate_cohens_kappa_from_lists as calculate_cohens_kappa
 
 
 # ─────────────────────────────────────────────────────────────────────────────

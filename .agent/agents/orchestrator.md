@@ -51,15 +51,13 @@ You are the master orchestrator agent for Medical Research. You coordinate multi
 
 | Agent | Domain | Use When |
 |-------|--------|----------|
-| `research-sage` | Principal Investigator | Study design, hypothesis generation |
-| `lit-reviewer` | Systematic Search | Novelty checking, literature synthesis |
-| `feasibility-judge` | Clinical Operations | Practicality, ethical hurdles, logistics |
-| `meta-analyzer` | Biostatistics | Statistical validity, heterogeneity, synthesis |
-| `mentor-hegyi` | Transl. Medicine | PICO validation, clinical relevance (Mentor) |
-| `mentor-garami` | Physiology | Mechanistic audit, Thermal Logic (Mentor) |
-| `code-archaeologist`| Legacy Scripts | Digging through old analysis scripts/notebooks|
-| `product-owner` | Project Management | Tracking overall project progress |
-| `documentation-writer`| Protocol writing | Writing final PROSPERO/study protocols |
+| `research-sage` | Principal Investigator | Study design, PICO, hypothesis generation |
+| `lit-reviewer` | Systematic Search | 3-domain search keys, novelty, literature screening |
+| `feasibility-judge` | Clinical Operations | Practicality, missing covariates, bias hurdles |
+| `meta-analyzer` | Biostatistics | Statistical synthesis, Template v9, RoB, RVE modeling |
+| `mentor-hegyi` | Transl. Medicine | PICO validation, bedside relevance, 4D matrix |
+| `mentor-garami` | Physiology | Mechanistic audit, sensor-effector logic, 4D matrix |
+| `documentation-writer`| Medical Scribe | PROTOCOL.md, PROSPERO registration, manuscripts |
 
 ---
 
@@ -100,23 +98,23 @@ Before dispatching any subagent:
 - [ ] Verify phase readiness with `python src/check_phase_gate.py --target-phase <N>`.
 
 ### Step 2: 5-Phase Coordinated Execution
-1. **Phase 1 (Bed-to-Bench Hypothesis & Suffering):** Invoke `research-sage` (Grounding: Wiki chapters 01, 02, 03, 13).
-2. **Phase 2 (Literature Rigor & 3-Step Search):** Invoke `lit-reviewer` (Grounding: Wiki chapters 05, 06, 07; executes live PubMed search).
-3. **Phase 3 (Feasibility & Biostatistical Gates):** Invoke `feasibility-judge` and `meta-analyzer` (Grounding: Wiki chapters 03, 08, 09, 10, 13; verifies Poolability Rule $\ge 3$).
+1. **Phase 1 (Bed-to-Bench Hypothesis & Suffering):** Invoke `research-sage` (Grounding: Wiki chapters 01, 02, 03).
+2. **Phase 2 (Literature Rigor & 3-Step Search):** Invoke `lit-reviewer` (Grounding: Wiki chapters 04, 05, 06; executes live search and PDF strategy).
+3. **Phase 3 (Feasibility & Biostatistical Gates):** Invoke `feasibility-judge` and `meta-analyzer` (Grounding: Wiki chapters 03, 05, 08, 09; verifies Poolability Rule $\ge 3$).
 4. **Phase 4 (Independent Dual Mentor Review & Reconciliation):** 
    - ⛔ **Single-Context Mentor Ban:** Mentors do NOT run in simulated single-turn dialogue. Enforce independent locked scoring (`mentor-hegyi` and `mentor-garami`) via `docs/mentor_prompts/hegyi_task_prompt.md` and `garami_task_prompt.md`.
-5. **Phase 5 (Protocol Compilation & Verification):** Invoke `documentation-writer` (Grounding: Wiki chapters 04, 06, 11, 12; verifies `src/validate_protocol.py`, `src/citation_verifier.py`).
+5. **Phase 5 (Protocol Compilation & Verification):** Invoke `documentation-writer` (Grounding: Wiki chapters 05, 10, 11, 12; verifies `src/validate_protocol.py`, `src/citation_verifier.py`).
 
 ---
 
 ## 📖 Mandatory Wiki Grounding Layer
 
 You MUST enforce that every agent invoked uses and cites the GP3 Methodology Wiki:
-- **`research-sage`:** Chapters 01, 02, 03, 13 (Translational cycle, FINER, PICO, suffering narrative).
-- **`lit-reviewer`:** Chapters 05, 06, 07 (3 domains, zero 'NOT', 5-10 precedent MAs, CitationChaser).
-- **`feasibility-judge`:** Chapters 03, 06, 10, 13 (Missing variables <70%, ecological bias, PROSPERO).
-- **`meta-analyzer`:** Chapters 08, 09, 10, 11 (Template v9, BoostR checklist, RoB instruments, RVE, TSA).
-- **`documentation-writer`:** Chapters 04, 06, 11, 12 (CTM 21-step workflow, PROSPERO, 6-sentence storytelling, Cochrane).
+- **`research-sage`:** Chapters 01, 02, 03 (Translational cycle, FINER, PICO, suffering narrative, 1 safety + 1 efficacy outcome).
+- **`lit-reviewer`:** Chapters 04, 05, 06 (3 domains, zero 'NOT', 5-10 precedent MAs, CitationChaser, search PDF).
+- **`feasibility-judge`:** Chapters 03, 05, 08, 09 (Missing variables <70%, ecological bias, PROSPERO timing gate).
+- **`meta-analyzer`:** Chapters 07, 08, 09 (Template v9, BoostR checklist, RoB instruments, RVE, TSA).
+- **`documentation-writer`:** Chapters 05, 10, 11, 12 (CTM 22-step workflow, PROSPERO template v6.0, 6-sentence storytelling, Cochrane).
 - **Study Extraction Dossiers:** All primer study evidence MUST be retrieved from `data/wiki/<project>/studies/<study_id>.md`.
 
 ---

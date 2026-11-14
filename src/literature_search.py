@@ -13,13 +13,8 @@ from api_clients.pubmed_client import PubMedClient
 from api_clients.cochrane_client import CochraneClient
 from white_spot_analyzer import WhiteSpotAnalyzer
 
-import io
-
-if sys.platform == "win32":
-    if hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    if hasattr(sys.stderr, 'reconfigure'):
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 
 def main():
@@ -29,10 +24,10 @@ def main():
         epilog="""
 Példák:
   # Keresés és mentés (az AI ezután elemezheti a találatokat):
-  python literature_search.py "neonatal hypothermia AND outcome"
+  python literature_search.py "neonatal sepsis antibiotic duration AND outcome"
 
   # Keresés + absztraktok és kulcsszavak kinyomtatása stdout-ra:
-  python literature_search.py "TRPA1 AND inflammation" --analyze
+  python literature_search.py "immunotherapy colorectal cancer survival" --analyze
 
   # Precedens metaanalízisek vizsgálata adott PMID-k alapján:
   python literature_search.py --pmids 23440789,37316160,39501186 --enrich-provenance
@@ -43,7 +38,7 @@ Példák:
     )
     parser.add_argument(
         "query", type=str, nargs="?",
-        help="Keresési kifejezés (PubMed szintaxis: pl. 'neonatal hypothermia AND outcome')"
+        help="Keresési kifejezés (PubMed szintaxis: pl. 'neonatal sepsis antibiotic duration AND outcome')"
     )
     parser.add_argument(
         "--pmids", type=str, default="",

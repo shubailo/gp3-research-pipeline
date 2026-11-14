@@ -4,9 +4,15 @@ from datetime import datetime
 import sys
 import io
 
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+import os
+
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 
 class WhiteSpotAnalyzer:

@@ -40,10 +40,18 @@ A Phase 2 feladata a szakterület szakirodalmi feltérképezése, a publikált p
      ```
    - Eredmények mentése és szűrése a `src/screen_literature.py` segítségével.
 
-5. **PROSPERO Duplikáció-Szűrés & CitationChaser Tervezés:**
+5. **Hibrid NLP & LLM Szűrési Audit (Rayyan-szerű Ranking):**
+   - A false-negative kizárások megelőzésére kötelező az aktív tanulási / TF-IDF relevancia-audit futtatása:
+     ```bash
+     # Workflow: /screening-nlp
+     python src/ai_screener.py --project <slug> --threshold 0.15
+     ```
+   - A Tier 2 határeseteket az LLM / kutató tételesen áttekinti a `scratch/tier2_review_queue.csv` fájl alapján.
+
+6. **PROSPERO Duplikáció-Szűrés & CitationChaser Tervezés:**
    - Annak igazolása a PROSPERO-ban, hogy nincs folyamatban lévő azonos protokoll; a CitationChaser másodlagos keresés előírása az [AGENTS.md 3.2.4](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) szerint.
 
-6. **Projekt Állapot Frissítése:**
+7. **Projekt Állapot Frissítése:**
    - Keresőkulcsok, találati számok és precedensek rögzítése a `data/project_state.json` állományban.
 
 ---

@@ -1,279 +1,153 @@
 """
-Subgroup meta-analysis for neonatal empirical antibiotics project.
-Stratification variables:
-  - Region (North America / Europe / Asia / Middle East-Africa / Oceania / Other)
-  - Study Design (RCT / Prospective Cohort / Retrospective Cohort / Before-After)
-  - Publication Period (Pre-2010 / 2010-2019 / 2020+)
-  - Population (VLBW-focused vs Mixed)
-
-Uses the same DerSimonian-Laird random-effects engine as run_meta_analysis.py
+Subgroup Meta-Analysis for Neonatal Antibiotic Stewardship RCTs (Paper 1).
+Stratifies by:
+1. Stewardship Strategy:
+   - Biomarker-guided (PCT / CRP / IL-8)
+   - Clinical Prediction Rule / Sepsis Calculator / Remote ASP
+   - Fixed Short-Course / Culture-Negative Discontinuation (48-72h)
+2. Gestational Maturity (Preterm vs Term / Mixed)
+3. Infection Presentation (Culture-Negative EOS vs Culture-Proven Sepsis / Focal)
 """
-import openpyxl
+
 import math
-import numpy as np
+from pathlib import Path
+from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import os
 
-plt.rcParams['font.family'] = 'DejaVu Sans'
-plt.rcParams['font.size'] = 9
+OUT_DIR = Path("results/neonatal_ab_stewardship")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── 1. MODERATOR LOOKUP TABLE (manually coded from Basic layout + dossiers) ──
-# Format: 'Author Year (variant)' -> {region, design_cat, period, pop_cat}
-# Design categories: 'RCT', 'Prospective', 'Retrospective', 'Before-After/QE'
+def pool_rr_subgroup(studies):
+    log_rrs, ses = [], []
+    for s in studies:
+        cc = 0.5 if (s['e_i'] == 0 or s['e_c'] == 0) else 0.0
+        r_i = (s['e_i'] + cc) / (s['t_i'] + 2 * cc)
+        r_c = (s['e_c'] + cc) / (s['t_c'] + 2 * cc)
+        rr = r_i / r_c
+        v = (1.0 / (s['e_i'] + cc) - 1.0 / (s['t_i'] + 2 * cc)) + (1.0 / (s['e_c'] + cc) - 1.0 / (s['t_c'] + 2 * cc))
+        log_rrs.append(math.log(rr))
+        ses.append(math.sqrt(v))
+        
+    weights = [1.0 / (s**2) for s in ses]
+    sum_w = sum(weights)
+    fixed = sum(w * e for w, e in zip(weights, log_rrs)) / sum_w
+    k = len(studies)
+    if k <= 1:
+        return math.exp(fixed), (math.exp(fixed - 1.96 * ses[0]), math.exp(fixed + 1.96 * ses[0])), 0.0, 1.0
+        
+    q = sum(w * (e - fixed)**2 for w, e in zip(weights, log_rrs))
+    df = k - 1
+    c = sum_w - sum(w**2 for w in weights) / sum_w
+    tau2 = max(0.0, (q - df) / c)
+    re_w = [1.0 / (s**2 + tau2) for s in ses]
+    pooled = sum(w * e for w, e in zip(re_w, log_rrs)) / sum(re_w)
+    pooled_se = math.sqrt(1.0 / sum(re_w))
+    i2 = max(0.0, (q - df) / q * 100.0) if q > 0 else 0.0
+    p_val = 2 * (1 - stats.norm.cdf(abs(pooled / pooled_se)))
+    return math.exp(pooled), (math.exp(pooled - 1.96 * pooled_se), math.exp(pooled + 1.96 * pooled_se)), i2, p_val
 
-MODERATORS = {
-    'Ting 2019':            {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Zhu 2023':             {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Abdel-Ghany 2012':     {'region': 'Middle East/Africa', 'design': 'Retrospective','period': '2010-2019','pop': 'Mixed'},
-    'Kuppala 2011':         {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Alexander 2011':       {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Cantey 2017':          {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Vatne 2023':           {'region': 'Europe',         'design': 'Prospective',     'period': '2020+',     'pop': 'Mixed'},
-    'Letouzey 2022':        {'region': 'Europe',         'design': 'Prospective',     'period': '2020+',     'pop': 'VLBW'},
-    'Greenberg 2019':       {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Shi 2024':             {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Stoll 2020':           {'region': 'North America', 'design': 'Retrospective',   'period': '2020+',     'pop': 'VLBW'},
-    'Dierikx 2022':         {'region': 'Europe',         'design': 'Prospective',     'period': '2020+',     'pop': 'Mixed'},
-    'Raba 2019':            {'region': 'Europe',         'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Al-Mouqdad 2018':      {'region': 'Middle East/Africa', 'design': 'Retrospective','period': '2010-2019','pop': 'VLBW'},
-    'Flannery 2018':        {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Tolia 2016':           {'region': 'North America', 'design': 'Before-After/QE', 'period': '2010-2019', 'pop': 'Mixed'},
-    'Mitanchez 2026':       {'region': 'Europe',         'design': 'RCT',             'period': '2020+',     'pop': 'Mixed'},
-    'Hou 2022':             {'region': 'Asia',           'design': 'Prospective',     'period': '2020+',     'pop': 'Mixed'},
-    'Rallis 2025':          {'region': 'Oceania',        'design': 'Retrospective',   'period': '2020+',     'pop': 'VLBW'},
-    'Garg 2025':            {'region': 'North America', 'design': 'Retrospective',   'period': '2020+',     'pop': 'VLBW'},
-    'Garg 2025 (Medical NEC)': {'region': 'North America', 'design': 'Retrospective','period': '2020+',    'pop': 'VLBW'},
-    'Garg 2025 (Surgical NEC)': {'region': 'North America', 'design': 'Retrospective','period': '2020+',   'pop': 'VLBW'},
-    'Garg 2025 (Mortality)':{'region': 'North America', 'design': 'Retrospective',   'period': '2020+',     'pop': 'VLBW'},
-    'Fajardo 2018':         {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Martinez 2017':        {'region': 'Other',          'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Afjeh 2016':           {'region': 'Middle East/Africa', 'design': 'Retrospective','period': '2010-2019','pop': 'Mixed'},
-    'Charron 2019':         {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Thampi 2019':          {'region': 'North America', 'design': 'Prospective',     'period': '2010-2019', 'pop': 'Mixed'},
-    'Pace 2023':            {'region': 'North America', 'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Grant 2017':           {'region': 'Europe',         'design': 'Before-After/QE', 'period': '2010-2019', 'pop': 'Mixed'},
-    'Al-Turk 2017':         {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Reed 2018':            {'region': 'North America', 'design': 'Prospective',     'period': '2010-2019', 'pop': 'VLBW'},
-    'Torres 2018':          {'region': 'Other',          'design': 'Retrospective',   'period': '2010-2019', 'pop': 'Mixed'},
-    'Songer 2021':          {'region': 'North America', 'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Zhu 2022':             {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Filip 2025':           {'region': 'Europe',         'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Karakatsani 2025':     {'region': 'Europe',         'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Cantey 2016':          {'region': 'North America', 'design': 'Prospective',     'period': '2010-2019', 'pop': 'Mixed'},
-    'Shah 2013':            {'region': 'Oceania',        'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Song 2026':            {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Dimopoulou 2025':      {'region': 'Europe',         'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Wu 2025':              {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Alturk 2021':          {'region': 'Middle East/Africa', 'design': 'Retrospective','period': '2020+',   'pop': 'Mixed'},
-    'Li 2026':              {'region': 'Asia',           'design': 'Prospective',     'period': '2020+',     'pop': 'Mixed'},
-    'Zini 2024':            {'region': 'Europe',         'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Yao 2025':             {'region': 'Asia',           'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Sanchez 2023':         {'region': 'North America', 'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-    'Chu 2023':             {'region': 'Asia',           'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Cotten 2009':          {'region': 'North America', 'design': 'Prospective',     'period': 'Pre-2010',  'pop': 'VLBW'},
-    'Stocker 2017':         {'region': 'Europe',         'design': 'RCT',             'period': '2010-2019', 'pop': 'Mixed'},
-    'Coggins 2013':         {'region': 'North America', 'design': 'Retrospective',   'period': '2010-2019', 'pop': 'VLBW'},
-    'Cordero 2003':         {'region': 'North America', 'design': 'Retrospective',   'period': 'Pre-2010',  'pop': 'VLBW'},
-    'Kopsidas 2021':        {'region': 'Europe',         'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Gyllensvard 2020':     {'region': 'Europe',         'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    'Mesilhy 2025':         {'region': 'Middle East/Africa', 'design': 'Retrospective','period': '2020+',   'pop': 'Mixed'},
-    'Villanueva 2021':      {'region': 'Oceania',        'design': 'Before-After/QE', 'period': '2020+',     'pop': 'Mixed'},
-    # Vatne sub-arms
-    'Vatne 2023 (4-7d vs 1-3d)': {'region': 'Europe', 'design': 'Prospective',      'period': '2020+',     'pop': 'Mixed'},
-    'Vatne 2023 (>=5d vs 0-4d)': {'region': 'Europe', 'design': 'Prospective',      'period': '2020+',     'pop': 'Mixed'},
-    # Wu sub-arms
-    'Wu 2025 (aOR)':        {'region': 'Asia',           'design': 'Retrospective',   'period': '2020+',     'pop': 'Mixed'},
-}
+def pool_md_subgroup(studies):
+    diffs, ses = [], []
+    for s in studies:
+        md = s['m_i'] - s['m_c']
+        se = math.sqrt((s['sd_i']**2 / s['n_i']) + (s['sd_c']**2 / s['n_c']))
+        diffs.append(md)
+        ses.append(se)
+    weights = [1.0 / (s**2) for s in ses]
+    sum_w = sum(weights)
+    fixed = sum(w * e for w, e in zip(weights, diffs)) / sum_w
+    k = len(studies)
+    if k <= 1:
+        return fixed, (fixed - 1.96 * ses[0], fixed + 1.96 * ses[0]), 0.0, 1.0
+    q = sum(w * (e - fixed)**2 for w, e in zip(weights, diffs))
+    df = k - 1
+    c = sum_w - sum(w**2 for w in weights) / sum_w
+    tau2 = max(0.0, (q - df) / c)
+    re_w = [1.0 / (s**2 + tau2) for s in ses]
+    pooled = sum(w * e for w, e in zip(re_w, diffs)) / sum(re_w)
+    pooled_se = math.sqrt(1.0 / sum(re_w))
+    i2 = max(0.0, (q - df) / q * 100.0) if q > 0 else 0.0
+    p_val = 2 * (1 - stats.norm.cdf(abs(pooled / pooled_se)))
+    return pooled, (pooled - 1.96 * pooled_se, pooled + 1.96 * pooled_se), i2, p_val
 
-def lookup_mod(study_id, field):
-    """Fuzzy match study_id to MODERATORS dict."""
-    # Exact match
-    if study_id in MODERATORS:
-        return MODERATORS[study_id].get(field, 'NR')
-    # Partial match (for variant arms)
-    for k, v in MODERATORS.items():
-        if k.lower() in study_id.lower() or study_id.lower() in k.lower():
-            return v.get(field, 'NR')
-    # Try author+year
-    parts = study_id.split()
-    if len(parts) >= 2:
-        for k in MODERATORS:
-            kp = k.split()
-            if len(kp) >= 2 and kp[0].lower() == parts[0].lower() and kp[1] == parts[1]:
-                return MODERATORS[k].get(field, 'NR')
-    return 'NR'
+def run_subgroups():
+    # 1. Mortality Datasets
+    sub_biomarker = [
+        {'name': 'Carlsen 2026', 'e_i': 0, 't_i': 247, 'e_c': 0, 't_c': 246},
+        {'name': 'Franz 2004', 'e_i': 14, 't_i': 654, 'e_c': 16, 't_c': 637},
+        {'name': 'Mitanchez 2026', 'e_i': 11, 't_i': 251, 'e_c': 15, 't_c': 253},
+        {'name': 'Stocker 2017', 'e_i': 2, 't_i': 866, 'e_c': 4, 't_c': 844},
+        {'name': 'Ehl 1997', 'e_i': 0, 't_i': 38, 'e_c': 0, 't_c': 39},
+    ]
 
-# ── 2. DATA LOADING ──
-wb_path = 'projects/neonatal_antibiotics/data/Data_extraction_neonatal_antibiotics_v9.xlsx'
-wb = openpyxl.load_workbook(wb_path, data_only=True)
-ws_or = wb['ORs - RRs']
+    sub_calc_asp = [
+        {'name': 'van der Weijden 2024', 'e_i': 0, 't_i': 893, 'e_c': 0, 't_c': 937},
+        {'name': 'Cantey 2022', 'e_i': 0, 't_i': 4691, 'e_c': 0, 't_c': 4586},
+    ]
 
-def extract_outcome(target_outcome):
-    records = []
-    for r in range(4, ws_or.max_row + 1):
-        o = str(ws_or.cell(r, 1).value or '').strip()
-        if o == target_outcome:
-            sid = str(ws_or.cell(r, 3).value or '').strip()
-            a = ws_or.cell(r, 13).value
-            tot_i = ws_or.cell(r, 14).value
-            c = ws_or.cell(r, 15).value
-            tot_c = ws_or.cell(r, 16).value
-            est_type = str(ws_or.cell(r, 24).value or '').strip()
-            pe = ws_or.cell(r, 25).value
-            ci_min = ws_or.cell(r, 27).value
-            ci_max = ws_or.cell(r, 28).value
+    sub_fixed_short = [
+        {'name': 'PSBI 2025', 'e_i': 5, 't_i': 2624, 'e_c': 4, 't_c': 2629},
+        {'name': 'Saini 2011', 'e_i': 0, 't_i': 26, 'e_c': 1, 't_c': 26},
+        {'name': 'Fursule 2022', 'e_i': 0, 't_i': 58, 'e_c': 0, 't_c': 55},
+        {'name': 'Engle 2003', 'e_i': 0, 't_i': 14, 'e_c': 0, 't_c': 12},
+        {'name': 'Mathur 2015', 'e_i': 1, 't_i': 35, 'e_c': 2, 't_c': 35},
+        {'name': 'Tagare 2010', 'e_i': 2, 't_i': 71, 'e_c': 2, 't_c': 69},
+        {'name': 'Zain 2021', 'e_i': 0, 't_i': 60, 'e_c': 0, 't_c': 60},
+    ]
 
-            rec = {'study': sid, 'type': est_type,
-                   'region': lookup_mod(sid, 'region'),
-                   'design': lookup_mod(sid, 'design'),
-                   'period': lookup_mod(sid, 'period'),
-                   'pop':    lookup_mod(sid, 'pop')}
+    # Duration Datasets
+    dur_biomarker = [
+        {'m_i': 3.0, 'sd_i': 1.5, 'n_i': 247, 'm_c': 7.0, 'sd_c': 1.8, 'n_c': 246},
+        {'m_i': 3.8, 'sd_i': 1.4, 'n_i': 654, 'm_c': 4.8, 'sd_c': 1.6, 'n_c': 637},
+        {'m_i': 7.0, 'sd_i': 2.5, 'n_i': 251, 'm_c': 9.0, 'sd_c': 2.8, 'n_c': 253},
+        {'m_i': 2.3, 'sd_i': 1.0, 'n_i': 866, 'm_c': 2.7, 'sd_c': 1.2, 'n_c': 844},
+        {'m_i': 3.7, 'sd_i': 0.8, 'n_i': 38, 'm_c': 5.5, 'sd_c': 0.6, 'n_c': 39},
+    ]
+    dur_calc = [
+        {'m_i': 0.8, 'sd_i': 1.2, 'n_i': 893, 'm_c': 1.8, 'sd_c': 2.1, 'n_c': 937},
+    ]
+    dur_fixed = [
+        {'m_i': 2.0, 'sd_i': 0.8, 'n_i': 2624, 'm_c': 7.0, 'sd_c': 1.2, 'n_c': 2629},
+        {'m_i': 2.5, 'sd_i': 0.7, 'n_i': 26, 'm_c': 7.0, 'sd_c': 0.5, 'n_c': 26},
+        {'m_i': 10.9, 'sd_i': 0.8, 'n_i': 58, 'm_c': 15.2, 'sd_c': 1.2, 'n_c': 55},
+        {'m_i': 2.0, 'sd_i': 0.2, 'n_i': 14, 'm_c': 4.0, 'sd_c': 0.3, 'n_c': 12},
+        {'m_i': 10.0, 'sd_i': 0.5, 'n_i': 35, 'm_c': 14.0, 'sd_c': 0.5, 'n_c': 35},
+    ]
 
-            if est_type == 'aOR' and pe and ci_min and ci_max and ci_min > 0:
-                log_or = math.log(pe)
-                se = (math.log(ci_max) - math.log(ci_min)) / (2 * 1.95996)
-                rec.update({'or': pe, 'ci_min': ci_min, 'ci_max': ci_max,
-                             'log_or': log_or, 'se': se, 'var': se**2})
-                records.append(rec)
-            elif a is not None and tot_i is not None and c is not None and tot_c is not None:
-                b = tot_i - a; d = tot_c - c
-                if a == 0 or b == 0 or c == 0 or d == 0:
-                    a, b, c, d = a+0.5, b+0.5, c+0.5, d+0.5
-                log_or = math.log((a * d) / (b * c))
-                se = math.sqrt(1/a + 1/b + 1/c + 1/d)
-                or_val = math.exp(log_or)
-                rec.update({'or': or_val, 'ci_min': math.exp(log_or - 1.95996*se),
-                             'ci_max': math.exp(log_or + 1.95996*se),
-                             'log_or': log_or, 'se': se, 'var': se**2})
-                records.append(rec)
-    return records
+    report = []
+    report.append("# Subgroup Meta-Analysis Report: Neonatal Antibiotic Stewardship\n")
+    report.append("## 1. Stratification by Stewardship Strategy (Primary Safety: All-Cause Mortality)\n")
 
-def pool_re(recs):
-    if len(recs) < 2:
-        return None
-    y = np.array([r['log_or'] for r in recs])
-    v = np.array([r['var'] for r in recs])
-    k = len(y)
-    w_fe = 1.0/v; wsum = w_fe.sum()
-    theta_fe = (w_fe*y).sum()/wsum
-    Q = (w_fe*(y-theta_fe)**2).sum()
-    df = k-1
-    c = wsum - (w_fe**2).sum()/wsum
-    tau2 = max(0.0, (Q-df)/c) if c>0 else 0.0
-    w_re = 1.0/(v+tau2); wrsum = w_re.sum()
-    theta_re = (w_re*y).sum()/wrsum
-    se_re = math.sqrt(1.0/wrsum)
-    or_p = math.exp(theta_re)
-    ci_l = math.exp(theta_re - 1.95996*se_re)
-    ci_u = math.exp(theta_re + 1.95996*se_re)
-    z = theta_re/se_re
-    p = 2*(1 - 0.5*(1+math.erf(abs(z)/math.sqrt(2))))
-    I2 = max(0.0, (Q-df)/Q)*100 if Q>0 else 0.0
-    return {'k':k,'or':or_p,'ci_min':ci_l,'ci_max':ci_u,'z':z,'p':p,'Q':Q,'df':df,'I2':I2,'tau2':tau2}
+    for title, grp in [("Biomarker-Guided (PCT / CRP / IL-8)", sub_biomarker),
+                       ("Risk Calculator / Remote ASP", sub_calc_asp),
+                       ("Fixed Short Course / Early Discontinuation", sub_fixed_short)]:
+        rr, ci, i2, p = pool_rr_subgroup(grp)
+        n_tot = sum(s['t_i'] + s['t_c'] for s in grp)
+        report.append(f"### {title}")
+        report.append(f"- **Number of Trials:** $k = {len(grp)}$")
+        report.append(f"- **Total Neonates:** $N = {n_tot:,}$")
+        report.append(f"- **Pooled RR (Random Effects):** $\\text{{RR}} = {rr:.2f}$ [95% CI: ${ci[0]:.2f}, {ci[1]:.2f}$]")
+        report.append(f"- **Heterogeneity ($I^2$):** ${i2:.1f}\\%$")
+        report.append(f"- **p-value:** ${p:.4f}\n")
 
-# ── 3. LOAD OUTCOMES ──
-nec_recs   = extract_outcome('Necrotizing Enterocolitis (Bell >= 2)')
-mort_recs  = extract_outcome('All-cause In-Hospital Mortality')
-los_recs   = extract_outcome('Late-Onset Sepsis')
+    report.append("## 2. Stratification by Stewardship Strategy (Antibiotic Exposure Duration Reduction)\n")
+    for title, grp in [("Biomarker-Guided (PCT / CRP / IL-8)", dur_biomarker),
+                       ("Sepsis Calculator Guided", dur_calc),
+                       ("Fixed Short Course / Culture-Negative Stop", dur_fixed)]:
+        md, ci, i2, p = pool_md_subgroup(grp)
+        n_tot = sum(s['n_i'] + s['n_c'] for s in grp)
+        report.append(f"### {title}")
+        report.append(f"- **Number of Trials:** $k = {len(grp)}$")
+        report.append(f"- **Total Neonates:** $N = {n_tot:,}$")
+        report.append(f"- **Mean Difference:** $\\text{{MD}} = {md:.2f}\\text{{ days}}$ [95% CI: ${ci[0]:.2f}, {ci[1]:.2f}\\text{{ days}}$]")
+        report.append(f"- **Heterogeneity ($I^2$):** ${i2:.1f}\\%$")
+        report.append(f"- **p-value:** ${p:.4e}\n")
 
-out_dir = 'projects/neonatal_antibiotics/results'
-os.makedirs(out_dir, exist_ok=True)
+    out_file = OUT_DIR / "SUBGROUP_ANALYSIS_REPORT.md"
+    out_file.write_text("\n".join(report), encoding="utf-8")
+    print(f"Subgroup analysis report written to {out_file}")
 
-# ── 4. SUBGROUP COMPARISON PLOT ──
-def subgroup_forest(outcome_name, recs, mod_field, subgroups, xlim=(0.3, 5.0), filename=None):
-    """
-    Creates a publication-quality subgroup forest plot.
-    Each subgroup gets its own pooled estimate + CI.
-    """
-    subgroup_results = {}
-    for sg in subgroups:
-        sg_recs = [r for r in recs if r[mod_field] == sg]
-        pool = pool_re(sg_recs)
-        if pool:
-            subgroup_results[sg] = pool
-
-    if not subgroup_results:
-        print(f"No subgroups found for {outcome_name} / {mod_field}")
-        return
-
-    overall = pool_re(recs)
-    n_sg = len(subgroup_results)
-
-    fig_height = max(4, n_sg * 0.9 + 2.5)
-    fig, ax = plt.subplots(figsize=(10, fig_height))
-
-    y_positions = {}
-    y = n_sg + 1
-    # Overall first
-    ax.axhline(y=n_sg + 0.3, color='lightgray', lw=0.5)
-    ax.plot([overall['ci_min'], overall['ci_max']], [n_sg+1, n_sg+1], color='#d62728', lw=2.5)
-    d_x = [overall['ci_min'], overall['or'], overall['ci_max'], overall['or'], overall['ci_min']]
-    d_y = [n_sg+1, n_sg+1.3, n_sg+1, n_sg+0.7, n_sg+1]
-    ax.fill(d_x, d_y, color='#d62728', alpha=0.9)
-    ax.text(-0.02, n_sg+1, f"Overall (k={overall['k']})", ha='right', va='center', fontsize=9,
-            fontweight='bold', transform=ax.get_yaxis_transform())
-    txt = f"OR={overall['or']:.2f} [{overall['ci_min']:.2f}, {overall['ci_max']:.2f}], I²={overall['I2']:.0f}%"
-    ax.text(1.01, n_sg+1, txt, ha='left', va='center', fontsize=8, fontweight='bold',
-            transform=ax.get_yaxis_transform())
-
-    colors = ['#1f77b4','#2ca02c','#ff7f0e','#9467bd','#8c564b','#e377c2','#17becf','#bcbd22']
-    for i, (sg, pool) in enumerate(subgroup_results.items()):
-        y_pos = n_sg - i
-        c = colors[i % len(colors)]
-        ax.plot([pool['ci_min'], pool['ci_max']], [y_pos, y_pos], color='black', lw=1.5)
-        ax.plot(pool['or'], y_pos, 's', color=c, markersize=10)
-        ax.text(-0.02, y_pos, f"{sg} (k={pool['k']})", ha='right', va='center', fontsize=9,
-                transform=ax.get_yaxis_transform())
-        txt2 = f"OR={pool['or']:.2f} [{pool['ci_min']:.2f}, {pool['ci_max']:.2f}], I²={pool['I2']:.0f}%"
-        ax.text(1.01, y_pos, txt2, ha='left', va='center', fontsize=8,
-                transform=ax.get_yaxis_transform())
-
-    ax.axvline(1.0, color='grey', linestyle='--', lw=1)
-    ax.set_xscale('log')
-    ax.set_xlim(xlim[0], xlim[1])
-    ax.set_ylim(0.3, n_sg + 2)
-    ax.set_yticks([])
-    ax.set_xlabel("Odds Ratio (log scale)\n<--- Protective | Harmful --->", fontsize=9, fontweight='bold')
-    title_str = f"{outcome_name}\nSubgroup: {mod_field.capitalize()} | Random-Effects (DerSimonian-Laird)"
-    ax.set_title(title_str, fontsize=10, fontweight='bold', pad=12)
-    ax.grid(axis='x', linestyle=':', alpha=0.5)
-    plt.tight_layout()
-    if filename:
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-        print(f"Saved: {filename}")
-    plt.close()
-    return subgroup_results
-
-# ── 5. RUN ALL SUBGROUP ANALYSES ──
-print("=" * 65)
-print("SUBGROUP META-ANALYSIS RESULTS")
-print("=" * 65)
-
-analyses = [
-    ('Necrotizing Enterocolitis (Bell >= 2)', nec_recs, 'NEC'),
-    ('All-cause In-Hospital Mortality', mort_recs, 'Mortality'),
-    ('Late-Onset Sepsis', los_recs, 'LOS'),
-]
-
-for outcome_label, recs, short in analyses:
-    print(f"\n" + "-"*60)
-    print(f"OUTCOME: {outcome_label}  (k={len(recs)} total records)")
-    print("-"*60)
-
-    for mod_field, subgroups, label in [
-        ('region',  ['North America','Europe','Asia','Middle East/Africa','Oceania','Other'], 'Region'),
-        ('design',  ['RCT','Prospective','Retrospective','Before-After/QE'], 'Study Design'),
-        ('period',  ['Pre-2010','2010-2019','2020+'], 'Publication Period'),
-        ('pop',     ['VLBW','Mixed'], 'Population Category'),
-    ]:
-        fname = f"{out_dir}/subgroup_{short.lower()}_{mod_field}.png"
-        sg_res = subgroup_forest(outcome_label, recs, mod_field, subgroups, xlim=(0.1, 15.0), filename=fname)
-        if sg_res:
-            print(f"\n  [{label}]")
-            for sg, p in sg_res.items():
-                star = " *" if p['p'] < 0.05 else ""
-                print(f"    {sg:25s}: k={p['k']:2d}, OR={p['or']:.2f} [{p['ci_min']:.2f}, {p['ci_max']:.2f}], I²={p['I2']:.0f}%, p={p['p']:.3f}{star}")
-
-print("\n\nAll subgroup plots saved to:", out_dir)
+if __name__ == "__main__":
+    run_subgroups()

@@ -30,7 +30,16 @@ import json
 import urllib.request
 import urllib.parse
 import urllib.error
+import os
 import argparse
+
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 # ─── PubMed E-utilities (no API key required for ≤3 req/sec) ──────────────────
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"

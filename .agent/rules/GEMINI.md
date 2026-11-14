@@ -178,7 +178,7 @@ When user's prompt is NOT in English:
 | Szerepkör | Kanonikus Forrás | Fő Fókusz & Szabályok |
 |-----------|------------------|----------------------|
 | **Klinikai Transzláció** | [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md) (`mentor-hegyi`) | Bedside First, SAP, 4D Klinikai Mátrix (1-10), Kerülhető Mortalitás |
-| **Élettani Méréstan** | [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md) (`mentor-garami`) | Sensor-Pathway-Effector, Ta kontroll, 4D Módszertani Mátrix (1-10) |
+| **Élettani Mechanizmusok & Méréstan** | [MENTORS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/MENTORS.md) (`mentor-garami`) | Élettani szabályok & okság, Sensor-Pathway-Effector, kompartment-mérés, 4D Módszertani Mátrix (1-10) |
 | **Biostatisztika & Szintézis** | [AGENTS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) (`meta-analyzer`) | Poolability Gate (≥3 azonos végpontú tanulmány), Confounder Matrix, RVE |
 | **Irodalomkutatás** | [AGENTS.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) (`lit-reviewer`) | 6-pontos háttér, 3-lépcsős kulcs (5-10 precedens), Boole 'NOT' tilalom |
 
@@ -236,7 +236,7 @@ When designing studies, formulating PICO, creating search keys, appraising risk 
 - **`lit-reviewer`:** Consults `data/wiki/methodology/04_systematic_search_key_guide.md`, `05_protocol_and_prospero.md`, and `06_screening_and_selection.md`.
 - **`feasibility-judge`:** Consults `data/wiki/methodology/03_clinical_question_frameworks.md`, `05_protocol_and_prospero.md`, `08_risk_of_bias_and_pitfalls.md`, and `09_statistical_synthesis_and_heterogeneity.md`.
 - **`meta-analyzer`:** Consults `data/wiki/methodology/07_data_extraction_and_boostr.md`, `08_risk_of_bias_and_pitfalls.md`, and `09_statistical_synthesis_and_heterogeneity.md`.
-- **`documentation-writer`:** Consults `data/wiki/methodology/05_protocol_and_prospero.md`, `10_grade_and_storytelling.md`, `11_ctm_22_step_master_workflow.md`, and `12_cochrane_handbook_v6_5_reference.md`.
+- **`documentation-writer`:** Consults `data/wiki/resources/PROSPERO_REGISTRATION_GUIDE_v6.1.md`, `data/wiki/methodology/05_protocol_and_prospero.md`, `10_grade_and_storytelling.md`, `11_ctm_22_step_master_workflow.md`, and `12_cochrane_handbook_v6_5_reference.md`.
 - **All Agents:** Ground study-level evidence directly in `data/wiki/<project_slug>/studies/<study_id>.md`.
 
 ### Agents & Skills
@@ -251,8 +251,10 @@ When designing studies, formulating PICO, creating search keys, appraising risk 
 | Phase Gate Checker | `python src/check_phase_gate.py --target-phase <N>` |
 | Oversight Loop (Amendments) | `python src/check_phase_gate.py --check-amendment` |
 | Protocol Linter | `python src/validate_protocol.py PROTOCOL.md` |
+| **CTM PROSPERO Compiler & Validator** | `python src/run_pipeline.py compile-prospero <slug>` / `validate-prospero <slug>` |
 | Literature Search | `python src/literature_search.py "<query>" --analyze` |
 | Literature Screening | `python src/screen_literature.py --from-file results/search.json` |
+| **NLP Screening Ranking (Rayyan-szerű)** | `python src/ai_screener.py --project <slug> [--threshold 0.15]` (`/screening-nlp`) |
 | Citation Verifier | `python src/citation_verifier.py PROTOCOL.md` |
 | PRISMA-trAIce | `python src/prisma_trace_reporter.py PROTOCOL.md` |
 | Forest Plot | `python src/forest_plot_builder.py data/extraction.csv` |

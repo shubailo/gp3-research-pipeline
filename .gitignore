@@ -16,6 +16,7 @@ hegyi_chroma/
 garami_chroma/
 .agent/archive/
 archive/
+ECC-source/
 
 # Sensitive intermediate review data
 data/reviews/*.json
@@ -28,11 +29,14 @@ data/analysis_preregistration.json
 
 # 1. Saját kutatási alprojektek könyvtárai — TELJES KIZÁRÁS
 projects/
+01_*/
+IntSurvey/
 
-# 2. Egyedi tanulmány dossziék (a methodology, templates és resources marad!)
+# 2. Egyedi tanulmány dossziék és projekt-specifikus wiki adatok
 data/wiki/*/studies/
 data/wiki/neonatal_antibiotics/
 data/wiki/meta_hyperglycaemia/
+data/wiki/neonatal_ab_stewardship/
 
 # Helyi PDF-ek és fulltext XML-ek kizárása (nagy méretű lokális binárisok / projekt-adatok)
 data/pdfs/
@@ -44,6 +48,7 @@ PROJECT.md
 PROTOCOL.md
 PROTOCOL_AMENDMENTS.md
 data/project_state.json
+data/cohorts_*.json
 
 # 4. Projekt-specifikus dokumentumok a root-ban
 AUDIT_REPORT.md
@@ -55,10 +60,18 @@ VALIDATE_EXTRACTION_IMPLEMENTATION_LOG.md
 medbuddy_master_source.md
 metabolism_outliers.md
 scratch_table1.txt
+*.txt
+!requirements.txt
 
-# 5. Egyedi kutatási tervek és PROSPERO piszkozatok
+# 5. Egyedi kutatási tervek, specifikus promptok és bírálatok
 docs/PROSPERO-draft-*
 docs/PLAN-*
+docs/mentor_prompts/*_*_prompt.md
+!docs/mentor_prompts/garami_task_prompt.md
+!docs/mentor_prompts/hegyi_task_prompt.md
+!docs/mentor_prompts/impact_assessment_prompt_template.md
+docs/mentor_reviews/
+docs/plans/
 docs/mentor_prompts/AMD-*
 docs/SEARCH-*
 docs/meta_analysis_protocol_*
@@ -86,8 +99,7 @@ garami_publications/
 hegyi_publications/
 TM/
 
-# 10. Projekt-specifikus src/ scriptek
-# (Az alábbiak NEM részei a pipeline magnak — project-adathoz kötöttek)
+# 10. Projekt-specifikus szkriptek (A projekt-specifikus kódok helye: projects/<slug>/scripts/)
 src/run_search.py
 src/extract_thesis.py
 src/generate_hyperglycaemia_wiki.py
@@ -115,14 +127,19 @@ src/verify_claims.py
 src/annotate_and_sync_studies.py
 src/audit_data_integrity.py
 
-# 11. Globális fájlformátum kizárások (kivéve a wiki sablonokat és erőforrásokat!)
+# 11. Globális fájlformátum kizárások (kivéve a wiki sablonokat és teszt fixture-öket!)
 *.csv
 *.xls
 *.xlsm
 *.xlsx
 *.pdf
+*.docx
+*.pptx
 
 # Kivételek: a kanonikus CTM sablonok és PDF útmutatók a wikihez kellenek!
 !data/wiki/templates/*.xlsx
+!data/wiki/templates/*.docx
+!data/wiki/templates/*.pptx
+!data/wiki/templates/*.md
 !data/wiki/resources/*.pdf
 !tests/fixtures/*.xlsx

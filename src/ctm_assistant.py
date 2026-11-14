@@ -18,65 +18,15 @@ import os
 import argparse
 from typing import Dict, Any, Tuple, List
 
-# Ensure safe UTF-8 output on Windows consoles
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
 
-def calculate_cohens_kappa(both_include: int, both_exclude: int, r1_only: int, r2_only: int) -> Dict[str, Any]:
-    """
-    Calculates Cohen's Kappa for 2 reviewers and maps to CTM Guidebook categories.
-    Matrix:
-                 Reviewer 2 Include    Reviewer 2 Exclude
-    R1 Include   both_include (A)      r1_only (B)
-    R1 Exclude   r2_only (C)           both_exclude (D)
-    """
-    total = both_include + both_exclude + r1_only + r2_only
-    if total == 0:
-        raise ValueError("Total number of records cannot be zero.")
+from src.utils.console import configure_utf8_console
+from src.utils.math_stats import calculate_cohens_kappa
 
-    # Observed agreement Po
-    po = (both_include + both_exclude) / total
-
-    # Marginals
-    r1_yes = (both_include + r1_only) / total
-    r1_no = (r2_only + both_exclude) / total
-    r2_yes = (both_include + r2_only) / total
-    r2_no = (r1_only + both_exclude) / total
-
-    # Expected agreement by chance Pe
-    pe = (r1_yes * r2_yes) + (r1_no * r2_no)
-
-    if pe == 1.0:
-        kappa = 1.0
-    else:
-        kappa = (po - pe) / (1.0 - pe)
-
-    # CTM Guidebook categorization (Page 17)
-    if kappa < 0.01:
-        category = "Poor / No agreement (< 0.01)"
-    elif kappa <= 0.20:
-        category = "Slight agreement (0.01 - 0.20)"
-    elif kappa <= 0.40:
-        category = "Fair agreement (0.21 - 0.40)"
-    elif kappa <= 0.60:
-        category = "Moderate agreement (0.41 - 0.60)"
-    elif kappa <= 0.80:
-        category = "Substantial agreement (0.61 - 0.80)"
-    else:
-        category = "Almost perfect or perfect agreement (0.81 - 1.00)"
-
-    return {
-        "total": total,
-        "both_include": both_include,
-        "both_exclude": both_exclude,
-        "r1_only": r1_only,
-        "r2_only": r2_only,
-        "po": po,
-        "pe": pe,
-        "kappa": kappa,
-        "category": category
-    }
+configure_utf8_console()
 
 def print_kappa_report(results: Dict[str, Any]):
     print("=" * 70)

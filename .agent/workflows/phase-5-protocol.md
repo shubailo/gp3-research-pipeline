@@ -28,27 +28,35 @@ A Phase 5 feladata a korábbi négy fázis eredményeinek egységes, 10 fejezetb
    - A végleges dokumentum összeállítása az [AGENTS.md 3.5](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) fejezeti struktúrája szerint:
      `1. Cím & PICO | 2. Racionálé & 3-as Szenvedés | 3. Célkitűzés | 4. Beválogatás/Kizárás | 5. Keresési Stratégia | 6. Válogatás & Adatkinyerés | 7. RoB Eszközök | 8. Szintézis & RVE | 9. GRADE | 10. Adminisztráció & Mentori Ellenjegyzés`.
 
-2. **PMID Halucináció- és Idézettség Ellenőrzés:**
+2. **Kanonikus CTM PROSPERO Tervezet Generálása & Auditja (`PROSPERO_DRAFT.md`):**
+   - A `documentation-writer` köteles a [`PROSPERO_REGISTRATION_GUIDE_v6.1.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/resources/PROSPERO_REGISTRATION_GUIDE_v6.1.md) hivatalos CTM útmutató alapján, a kutatási téma PICO elemeire szabva összeállítani a 12 szekciós regisztrációs adatlapot:
+     ```bash
+     python src/run_pipeline.py compile-prospero <projekt_slug>
+     python src/run_pipeline.py validate-prospero <projekt_slug>
+     ```
+   - Ellenőrzendő kötelező pontok: Screen 4 embargo-védelem (nem hallgatói kurzusmunka), Screen 5 "Intervention review", 1 biztonságossági + 1 hatásossági végpont, másodlagos végpontoknál CTM Poolability záradék, Section 10-ben kizárólag a Preliminary searches = Completed.
+
+3. **PMID Halucináció- és Idézettség Ellenőrzés:**
    - A protokollban szereplő hivatkozások valóságtartalmának ellenőrzése a PubMed API-val:
      ```bash
      python src/citation_verifier.py <elérési_út/PROTOCOL.md>
      ```
    - Minden hivatkozott PMID-nek valósnak és tematikailag illeszkedőnek kell lennie.
 
-3. **Determinisztikus Protokoll Linter Futtatása:**
+4. **Determinisztikus Protokoll Linter Futtatása:**
    - A dokumentum pontozása a 7 Kanonikus Megfelelőségi Kapu szerint:
      ```bash
      python src/validate_protocol.py <elérési_út/PROTOCOL.md>
      ```
    - ⚠️ **Megfelelőségi Küszöb:** A protokoll kötelezően el kell érje a **$\ge 70/100$ pontot** a release-hez az [AGENTS.md 4. Fejezet](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/AGENTS.md) kapurendszere szerint. Ha a pontszám alacsonyabb, a hibás kapuk javítása kötelező.
 
-4. **PRISMA-trAIce Riport Létrehozása:**
+5. **PRISMA-trAIce Riport Létrehozása:**
    - Az AI felhasználás transzparens naplózása a PRISMA 2020 irányelvek szerint:
      ```bash
      python src/prisma_trace_reporter.py <elérési_út/PROTOCOL.md>
      ```
 
-5. **Projekt Lezárása & Verziózás (`v1.0`):**
+6. **Projekt Lezárása & Verziózás (`v1.0`):**
    - A végleges állapot és verziószám rögzítése a `data/project_state.json` állományban.
 
 ---

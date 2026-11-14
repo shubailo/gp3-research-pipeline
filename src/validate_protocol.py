@@ -23,11 +23,13 @@ import os
 import re
 import argparse
 
-if sys.stdout.encoding != 'utf-8':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
+# Ensure workspace root is in sys.path
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 class Colors:
     GREEN = '\033[92m'
@@ -82,7 +84,7 @@ def check_background_completeness(content: str) -> tuple[str, str, int]:
     details = []
     
     # Point 1: Definition & Mechanism
-    if any(k in content_lower for k in ["definition", "pathophysiology", "mechanism", "ischemia", "inflammation"]):
+    if any(k in content_lower for k in ["definition", "pathophysiology", "mechanism", "pathomechanism", "biology", "etiology", "ischemia", "inflammation", "cascade", "pathway"]):
         score += 2
         details.append("Definition/Mechanism")
         
@@ -101,7 +103,7 @@ def check_background_completeness(content: str) -> tuple[str, str, int]:
         details.append("MISSING: Prognosis Numbers")
         
     # Point 4: Gold standard treatment
-    if any(k in content_lower for k in ["gold standard", "standard of care", "therapeutic hypothermia", "guideline", "first-line"]):
+    if any(k in content_lower for k in ["gold standard", "standard of care", "current therapy", "first-line", "guideline", "clinical practice", "standard treatment"]):
         score += 2
         details.append("Gold Standard")
         
@@ -143,8 +145,8 @@ def check_search_syntax(content: str) -> tuple[str, str, int]:
         return "FAIL", f"CRITICAL VIOLATION: Arbitrary Boolean 'NOT' found ('{bad_sample}...'). Only Cochrane animal filter ('NOT (animals NOT humans)') is permitted!", 0
         
     # Check for 3-domain structure
-    has_population = any(k in content.lower() for k in ["population", "mesh", "infant", "neonate", "patient"])
-    has_exposure = any(k in content.lower() for k in ["exposure", "intervention", "cooling", "glucose", "hypothermia", "biomarker"])
+    has_population = any(k in content.lower() for k in ["population", "participant", "patient", "cohort", "subject", "mesh", "infant", "neonate", "pediatric", "child", "adult"])
+    has_exposure = any(k in content.lower() for k in ["exposure", "intervention", "treatment", "therapy", "drug", "agent", "regimen", "procedure", "biomarker", "dose", "duration"])
     has_and = " AND " in content or "AND" in content
     
     if has_cochrane_animal_filter and has_population and has_exposure:
@@ -327,7 +329,7 @@ def run_protocol_validation(filepath: str, strict: bool = False) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Audit research protocols against GP3 / CTM standards.")
     parser.add_argument("file", help="Path to markdown protocol file (e.g. PROTOCOL.md)")
-    parser.add_argument("--strict", action="store_true", help="Enforce strict 90%+ score threshold")
+    parser.add_argument("--strict", action="store_true", help="Enforce strict 90%%+ score threshold")
     args = parser.parse_args()
     
     sys.exit(run_protocol_validation(args.file, strict=args.strict))

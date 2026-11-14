@@ -38,17 +38,12 @@ import re
 import argparse
 from typing import Dict, List, Any, Optional, Tuple, Set
 
-# Safe Windows UTF-8 reconfigure
-if sys.platform == "win32":
-    try:
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        if hasattr(sys.stderr, 'reconfigure'):
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
 WORKSPACE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_DIR not in sys.path:
+    sys.path.insert(0, WORKSPACE_DIR)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 # 6+1 CTM BoostR Szemantikai Színpaletta és kategóriák
 COLOR_CATEGORIES = {
@@ -398,7 +393,7 @@ class PlausibilityManager:
             try:
                 with open(template_file, "r", encoding="utf-8") as f:
                     return json.load(f).get("ranges", {})
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 pass
 
         return {}

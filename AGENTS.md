@@ -51,7 +51,7 @@ A kutatási tervek kidolgozása kötelezően az alábbi 5 fázison halad kereszt
 │ • Előre specifikált Confounder Matrix (QUIPS / RoB 2 / ROBINS-I)       │
 │ • Hiányzó változók auditja (<70% riportolás -> narratív szintézis)     │
 │ • Ökológiai torzítás kizárása (aggregált átlagok vs egyéni kimenetel)  │
-│ • Sensor-Pathway-Effector triád & Termális Dózis (COIN) ellenőrzés     │
+│ • Sensor-Pathway-Effector triád & Élettani Mechanizmus ellenőrzés      │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ (Módszertanilag poolozható adathalmaz)
                                    ▼
@@ -65,10 +65,11 @@ A kutatási tervek kidolgozása kötelezően az alábbi 5 fázison halad kereszt
                                    │ (Mentori jóváhagyás & Tisztázott pontok)
                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ PHASE 5: Protokoll Kompiláció & Determinisztikus Linter                │
+│ PHASE 5: Protokoll & PROSPERO Kompiláció & Determinisztikus Linter     │
 │ Vezető ágens: documentation-writer                                     │
-│ • 10 fejezetes, publikációkész PROTOCOL.md / PROSPERO tervezet         │
+│ • 10 fejezetes PROTOCOL.md & CTM Guide v6.0/v6.1 PROSPERO_DRAFT.md     │
 │ • Determinisztikus ellenőrzés: `python src/validate_protocol.py`       │
+│ • PROSPERO audit: `python src/run_pipeline.py validate-prospero`       │
 │ • CTM Megfelelőségi Pontszám: ≥70/100 szükséges a jóváhagyáshoz       │
 │ • PMID halucináció-ellenőrzés: `python src/citation_verifier.py`       │
 └────────────────────────────────────────────────────────────────────────┘
@@ -154,7 +155,7 @@ A kutatási tervek kidolgozása kötelezően az alábbi 5 fázison halad kereszt
 
 ### 3.5 Támogató Ágensek
 - **`orchestrator`:** Koordinálja az 5 fázis lefutását, érvényesíti az ágenshatárokat (Agent Boundary Enforcement: a `lit-reviewer` nem számol statisztikát, a `meta-analyzer` nem ír klinikai bevezetőt), és biztosítja a kontextus átadását a fázisok között.
-- **`documentation-writer`:** A Phase 5-ben összeállítja a végleges, 10 fejezetből álló `PROTOCOL.md` dokumentumot, integrálva a korábbi fázisok számszerű adatait, mentori pontjait és szókratészi válaszait.
+- **`documentation-writer`:** A Phase 5-ben összeállítja a végleges, 10 fejezetből álló `PROTOCOL.md` dokumentumot és a `data/wiki/resources/PROSPERO_REGISTRATION_GUIDE_v6.1.md` szerinti `PROSPERO_DRAFT.md` regisztrációs adatlapot, integrálva a korábbi fázisok számszerű adatait, mentori pontjait és szókratészi válaszait.
 
 ---
 
@@ -169,7 +170,7 @@ A megírt protokollokat a Python linter ellenőrzi a következő pontozási rend
 | **Gate 3** | **6-Pontos Számszerűsített Háttér:** Incidencia, kezeletlen prognózis %, epidemiológiai link % | 15 pont |
 | **Gate 4** | **Keresési Szintaxis & Precedens Indoklás:** 3 domén struktúra, Boole 'NOT' teljes hiánya, <10 precedens esetén explicit indoklás | 15 pont |
 | **Gate 5** | **Poolozhatósági Kapu:** ≥3 primer tanulmány azonos kimenetellel | 15 pont |
-| **Gate 6** | **Módszertani Szigor, Confounder Matrix & COIN Dózis:** QUIPS / RoB 2 + Confounder Matrix + Multilevel RVE + Termális intervencióknál kötelező Cooling Index (COIN) ellenőrzés | 15 pont |
+| **Gate 6** | **Módszertani Szigor, Élettani Mechanizmus & Confounder Matrix:** QUIPS / RoB 2 + Confounder Matrix + Multilevel RVE + Termális vizsgálatoknál Cooling Index (COIN) kontroll | 15 pont |
 | **Gate 7** | **Transzlációs Hatás:** Explicit T1–T4 stádium + Kerülhető Mortalitás számai | 10 pont |
 
 - **Jóváhagyási küszöb:** **≥ 70 pont** = APPROVED (Elfogadva)  

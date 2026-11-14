@@ -7,10 +7,10 @@ filter, and screen titles and abstracts against configurable PICO criteria.
 
 Usage:
     # 1. Screen an existing search results JSON file:
-    python src/screen_literature.py --from-file results/search_20260912_135015.json --p-terms "hie,neonate" --e-terms "cooling,hypothermia"
+    python src/screen_literature.py --from-file results/search_example.json --p-terms "sepsis,neonate" --e-terms "antibiotic,duration"
 
     # 2. Run a direct PubMed query and screen:
-    python src/screen_literature.py --query "mild HIE cooling" --max-results 100
+    python src/screen_literature.py --query "colorectal cancer immunotherapy" --max-results 100
 
     # 3. Basic science screening (retaining animal models):
     python src/screen_literature.py --from-file results/search.json --keep-animals
@@ -25,20 +25,13 @@ import argparse
 from datetime import datetime
 import io
 
-# Safe Windows UTF-8 reconfigure without stream closure
-if sys.platform == "win32":
-    try:
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        if hasattr(sys.stderr, 'reconfigure'):
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
 # Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+
+from src.utils.console import configure_utf8_console
+configure_utf8_console()
 
 try:
     from api_clients.pubmed_client import PubMedClient
@@ -394,14 +387,14 @@ def main():
     group.add_argument("--query", help="Direct PubMed search query")
     
     parser.add_argument("--max-results", type=int, default=100, help="Max results for direct PubMed query")
-    parser.add_argument("--p-terms", default="", help="Comma-separated Population keywords (e.g. 'hie,neonate,infant')")
-    parser.add_argument("--e-terms", default="", help="Comma-separated Exposure/Intervention keywords (e.g. 'cooling,hypothermia')")
-    parser.add_argument("--o-terms", default="", help="Comma-separated Outcome keywords (e.g. 'mortality,bayley,death')")
+    parser.add_argument("--p-terms", default="", help="Comma-separated Population keywords (e.g. 'sepsis,neonate,infant')")
+    parser.add_argument("--e-terms", default="", help="Comma-separated Exposure/Intervention keywords (e.g. 'antibiotic,immunotherapy,stewardship')")
+    parser.add_argument("--o-terms", default="", help="Comma-separated Outcome keywords (e.g. 'mortality,overall survival,recurrence')")
     parser.add_argument("--keep-animals", action="store_true", help="Do not exclude animal and in vitro models")
     parser.add_argument("--keep-reviews", action="store_true", help="Do not exclude review articles and editorials")
     parser.add_argument("--keep-adults", action="store_true", help="Do not exclude adult populations")
     parser.add_argument("--dual-adjudicate", action="store_true", help="Automatically trigger PRISMA 2020 full-text adjudication on included/unsure candidates")
-    parser.add_argument("--project", default="neonatal_antibiotics", help="Project slug for adjudication (default: neonatal_antibiotics)")
+    parser.add_argument("--project", default="", help="Optional project slug for adjudication")
     parser.add_argument("--output", default="results", help="Output directory for reports (default: results)")
     
     args = parser.parse_args()
