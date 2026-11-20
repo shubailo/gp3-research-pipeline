@@ -103,6 +103,47 @@ def reviewer_1_clinical(record: dict, project: str) -> dict:
             return {"decision": "UNSURE", "reason": "Outcome: Long-term neurodevelopment/mortality not detailed", "reviewer": "R1_Clinical"}
         return {"decision": "INCLUDE", "reason": "Eligible: Human neonates with HIE undergoing cooling", "reviewer": "R1_Clinical"}
 
+    elif project == "pediatric_prewarming":
+        # R1: Clinical Population & Core Hypothermia Outcomes
+        if re.search(r'\b(dogs?|canine|veterinary|rats?|mice|mouse|murine|piglets?|porcine|bovine|ovine|in vitro|cell culture|cell line|animal model)\b', text, re.IGNORECASE):
+            if "veterinary" in text or "small dogs" in text or "in dogs" in text or "canine" in text:
+                return {"decision": "EXCLUDE", "reason": "Preclinical: Veterinary / canine study", "reviewer": "R1_Clinical"}
+            human_ped_regex = r'\b(pediatric patients?|paediatric patients?|children|infants?|neonates?|nicu|picu|human)\b'
+            if not re.search(human_ped_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Preclinical: Animal or in vitro laboratory model", "reviewer": "R1_Clinical"}
+
+        # Obstetric & Adult exclusions (Maternal pre-warming before cesarean is adult surgery)
+        if re.search(r'\b(cesarean|caesarean|parturients?|maternal|total knee|total hip|arthroplast\w*|coronary artery bypass|adult cardiac)\b', text, re.IGNORECASE) and not re.search(r'\b(pediatric surgery|paediatric surgery|children undergoing surgery)\b', text, re.IGNORECASE):
+            return {"decision": "EXCLUDE", "reason": "Population: Adult obstetric / orthopedic / non-pediatric", "reviewer": "R1_Clinical"}
+
+        adult_regex = r'\b(adults?|elderly|geriatric|older patients after major cancer surgery)\b'
+        if re.search(adult_regex, text, re.IGNORECASE):
+            ped_regex = r'\b(pediatric|paediatric|children|child|infants?|neonates?|newborns?|adolescents?|toddlers?)\b'
+            if not re.search(ped_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Population: Adult exclusively / non-pediatric", "reviewer": "R1_Clinical"}
+
+        # Non-surgical delivery room / transport resuscitation
+        delivery_regex = r'\b(delivery room|resuscitation of preterm|plastic wrap|plastic bag|plastic hat|polyethylene bag|intramural vaginally born|cloth and newspaper)\b'
+        if re.search(delivery_regex, text, re.IGNORECASE):
+            surg_regex = r'\b(surgery|surgical|operation|operative|anesthesia|anaesthesia|operating room|operating theatre|induction)\b'
+            if not re.search(surg_regex, text, re.IGNORECASE):
+                return {"decision": "EXCLUDE", "reason": "Setting: Delivery room resuscitation / transport without surgery", "reviewer": "R1_Clinical"}
+
+        ped_surg_regex = r'\b(pediatric|paediatric|children|child|infants?|neonates?|newborns?|adolescents?|toddlers?|pediatric surgery|pediatric surgical)\b'
+        if not re.search(ped_surg_regex, text, re.IGNORECASE):
+            return {"decision": "EXCLUDE", "reason": "Population: Non-pediatric surgical cohort", "reviewer": "R1_Clinical"}
+
+        # Must be in a surgical or perioperative context
+        perioperative_regex = r'\b(surgery|surgical|operation|operative|anesthesia|anaesthesia|operating room|operating theatre|perioperative|preoperative|postoperative|pacu|induction)\b'
+        if not re.search(perioperative_regex, text, re.IGNORECASE):
+            return {"decision": "EXCLUDE", "reason": "Setting: Non-surgical cohort", "reviewer": "R1_Clinical"}
+
+        temp_outcome_regex = r'\b(hypothermia|core temperature|body temperature|normothermia|temperature drop|shivering|thermal|rewarming|pacu|temperature monitoring)\b'
+        if not re.search(temp_outcome_regex, text, re.IGNORECASE):
+            return {"decision": "UNSURE", "reason": "Outcome: Thermal/hypothermia endpoint unconfirmed in abstract", "reviewer": "R1_Clinical"}
+
+        return {"decision": "INCLUDE", "reason": "Eligible: Pediatric surgical cohort with thermal outcomes evaluated", "reviewer": "R1_Clinical"}
+
     else:
         # Generic clinical screen
         if len(text) < 50:
@@ -153,6 +194,34 @@ def reviewer_2_methodological(record: dict, project: str) -> dict:
         if not has_quant:
             return {"decision": "UNSURE", "reason": "Methodology: Quantitative effect estimate unclear in abstract", "reviewer": "R2_Methodological"}
         return {"decision": "INCLUDE", "reason": "Eligible: Quantitative glucose exposure with contrast analyzed", "reviewer": "R2_Methodological"}
+
+    elif project == "pediatric_prewarming":
+        # R2: Methodological Rigor, Active Prewarming Exposure & Comparator
+        review_regex = r'\b(systematic review|meta-analysis|narrative review|practice guideline|consensus statement|guidelines?|editorial|commentary|correspondence|letter to the editor|expert opinion)\b'
+        if re.search(review_regex, title, re.IGNORECASE) and "protocol" not in title.lower():
+            return {"decision": "EXCLUDE", "reason": "Design: Secondary literature / Review without primary data (Flagged for citation chasing)", "reviewer": "R2_Methodological"}
+
+        # Adult obstetric / non-pediatric exclusion
+        if re.search(r'\b(cesarean|caesarean|parturients?|maternal|total knee|total hip|arthroplast\w*|older patients after major cancer surgery)\b', text, re.IGNORECASE) and not re.search(r'\b(pediatric surgery|paediatric surgery|children undergoing surgery)\b', text, re.IGNORECASE):
+            return {"decision": "EXCLUDE", "reason": "Population/Design: Adult obstetric or non-pediatric surgical intervention", "reviewer": "R2_Methodological"}
+
+        prewarm_regex = r'\b(prewarming|pre-warming|preoperative warming|pre-operative warming|preanesthetic warming|pre-anesthetic warming|active warming before|warming prior to induction)\b'
+        faw_bundle_regex = r'\b(forced-air|forced air|warming blanket|thermal mattress|conductive warming|underbody blanket|bair hugger|bair paws|resistive heating)\b'
+
+        has_prewarm = bool(re.search(prewarm_regex, text, re.IGNORECASE))
+        has_faw = bool(re.search(faw_bundle_regex, text, re.IGNORECASE))
+
+        if has_prewarm:
+            has_contrast = bool(re.search(r'\b(randomized|randomised|trial|control|versus|vs\.?|compared|comparison|cohort|intervention group|baseline|pre-intervention|post-intervention)\b', text, re.IGNORECASE))
+            if has_contrast:
+                return {"decision": "INCLUDE", "reason": "Eligible: Active pre-warming intervention evaluated against comparator/control", "reviewer": "R2_Methodological"}
+            else:
+                return {"decision": "UNSURE", "reason": "Design: Comparative arm/control unconfirmed in abstract", "reviewer": "R2_Methodological"}
+
+        if has_faw and any(k in text for k in ["pre", "induction", "before", "timing", "bundle"]):
+            return {"decision": "UNSURE", "reason": "Intervention: Active warming timing/pre-induction arm requires full-text verification", "reviewer": "R2_Methodological"}
+
+        return {"decision": "EXCLUDE", "reason": "Intervention: No active pre-warming evaluated", "reviewer": "R2_Methodological"}
 
     else:
         return {"decision": "INCLUDE", "reason": "Methodological criteria met", "reviewer": "R2_Methodological"}
@@ -219,12 +288,12 @@ def export_adjudication_workbooks(
 
     for row_idx, item in enumerate(conflicts, start=2):
         row_vals = [
-            str(item.get("Record_ID", row_idx - 1)),
-            str(item.get("PMID", "")).replace(".0", ""),
-            str(item.get("DOI", "")),
-            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
-            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
-            str(item.get("Journal", item.get("Publication Title", ""))),
+            str(item.get("Record_ID", item.get("id", row_idx - 1))),
+            str(item.get("PMID", item.get("pmid", ""))).replace(".0", ""),
+            str(item.get("DOI", item.get("doi", ""))),
+            str(item.get("Year", item.get("year", item.get("Publication Year", "")))).replace(".0", ""),
+            str(item.get("First_Author", item.get("first_author", item.get("Author", item.get("author", ""))))),
+            str(item.get("Journal", item.get("journal", item.get("Publication Title", "")))),
             str(item.get("R1_Decision", "")),
             str(item.get("R1_Rationale", "")),
             str(item.get("R2_Decision", "")),
@@ -278,12 +347,12 @@ def export_adjudication_workbooks(
     fill_inc_row = PatternFill(start_color="EAF2E8", end_color="EAF2E8", fill_type="solid")
     for row_idx, item in enumerate(consensus_inc, start=2):
         row_vals = [
-            str(item.get("Record_ID", row_idx - 1)),
-            str(item.get("PMID", "")).replace(".0", ""),
-            str(item.get("DOI", "")),
-            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
-            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
-            str(item.get("Journal", item.get("Publication Title", ""))),
+            str(item.get("Record_ID", item.get("id", row_idx - 1))),
+            str(item.get("PMID", item.get("pmid", ""))).replace(".0", ""),
+            str(item.get("DOI", item.get("doi", ""))),
+            str(item.get("Year", item.get("year", item.get("Publication Year", "")))).replace(".0", ""),
+            str(item.get("First_Author", item.get("first_author", item.get("Author", item.get("author", ""))))),
+            str(item.get("Journal", item.get("journal", item.get("Publication Title", "")))),
             str(item.get("R1_Decision", "INCLUDE")),
             str(item.get("R2_Decision", "INCLUDE")),
             str(item.get("Title", item.get("title", ""))),
@@ -317,12 +386,12 @@ def export_adjudication_workbooks(
     fill_exc_row = PatternFill(start_color="FDEDEC", end_color="FDEDEC", fill_type="solid")
     for row_idx, item in enumerate(consensus_exc, start=2):
         row_vals = [
-            str(item.get("Record_ID", row_idx - 1)),
-            str(item.get("PMID", "")).replace(".0", ""),
-            str(item.get("DOI", "")),
-            str(item.get("Year", item.get("Publication Year", ""))).replace(".0", ""),
-            str(item.get("First_Author", item.get("Author", item.get("author", "")))),
-            str(item.get("Journal", item.get("Publication Title", ""))),
+            str(item.get("Record_ID", item.get("id", row_idx - 1))),
+            str(item.get("PMID", item.get("pmid", ""))).replace(".0", ""),
+            str(item.get("DOI", item.get("doi", ""))),
+            str(item.get("Year", item.get("year", item.get("Publication Year", "")))).replace(".0", ""),
+            str(item.get("First_Author", item.get("first_author", item.get("Author", item.get("author", ""))))),
+            str(item.get("Journal", item.get("journal", item.get("Publication Title", "")))),
             str(item.get("Exclusion_Reason", item.get("R1_Rationale", "Excluded"))),
             str(item.get("R1_Rationale", "")),
             str(item.get("R2_Rationale", "")),
@@ -458,18 +527,18 @@ def run_adjudication(
             annotated["Final_Decision"] = "INCLUDED"
             annotated["Primary_Reason"] = "Eligible: Full PICO criteria confirmed in Title/Abstract"
             consensus_inc.append(annotated)
-        elif is_r1_exc or is_r2_exc:
+        elif is_r1_exc and is_r2_exc:
             annotated["Adjudication_Status"] = "CONSENSUS_EXCLUDE"
             annotated["Final_Decision"] = "EXCLUDED"
-            reason = r1_r if is_r1_exc else r2_r
+            reason = f"R1: {r1_r} | R2: {r2_r}" if r1_r != r2_r else r1_r
             annotated["Exclusion_Reason"] = reason
             annotated["Primary_Reason"] = reason
             consensus_exc.append(annotated)
         else:
             annotated["Adjudication_Status"] = "CONFLICT_NEEDS_ARBITRATION"
             annotated["Final_Decision"] = "UNSURE_FULLTEXT"
-            annotated["Conflict_Type"] = f"Unsure Flag: R1({r1_d}) vs R2({r2_d})"
-            annotated["Primary_Reason"] = "Candidate: Culture status or tabular outcomes require full-text check"
+            annotated["Conflict_Type"] = f"Discordant / Borderline: R1({r1_d}) vs R2({r2_d})"
+            annotated["Primary_Reason"] = "Discordant evaluation or borderline eligibility; requires senior arbitration"
             annotated["Human_Arbiter_Decision"] = ""  # Left empty for human decision
             annotated["Arbitration_Rationale"] = ""   # Left empty for human rationale
             conflicts.append(annotated)
@@ -625,6 +694,7 @@ def main():
     parser.add_argument("--r1-col", help="Column name for Reviewer 1 decision in unified sheet")
     parser.add_argument("--r2-col", help="Column name for Reviewer 2 decision in unified sheet")
     parser.add_argument("--output-dir", help="Output directory for adjudication artifacts")
+    parser.add_argument("--dual-screening", action="store_true", help="Execute true dual independent screening using decoupled clinical and methodological review profiles")
     
     args = parser.parse_args()
 
@@ -632,7 +702,7 @@ def main():
     output_dir = args.output_dir or os.path.join(WORKSPACE_DIR, "results", args.project)
 
     records = []
-    is_genuinely_dual = False
+    is_genuinely_dual = bool(args.dual_screening)
 
     # Scenario 1: Separate R1 and R2 files provided
     if args.r1_file and args.r2_file:

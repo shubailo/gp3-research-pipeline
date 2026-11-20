@@ -54,15 +54,27 @@ except ImportError:
 def find_project_csv(project_slug: str) -> Optional[str]:
     """Megkeresi a projekt screening döntési CSV fájlját a kanonikus könyvtárakban."""
     candidates = [
+        os.path.join(PROJECT_ROOT, "projects", project_slug, "screening_results.csv"),
         os.path.join(PROJECT_ROOT, "projects", project_slug, "data", "CTM_Screening_Decisions_2981.csv"),
         os.path.join(PROJECT_ROOT, "projects", project_slug, "data", f"screening_decisions_{project_slug}.csv"),
         os.path.join(PROJECT_ROOT, "projects", project_slug, "data", "screening_decisions.csv"),
+        os.path.join(PROJECT_ROOT, "projects", project_slug, "literature", "screening_results.csv"),
+        os.path.join(PROJECT_ROOT, "projects", project_slug, "deduplicated_records.csv"),
+        os.path.join(PROJECT_ROOT, "projects", project_slug, "literature", "deduplicated_records.csv"),
     ]
     data_dir = os.path.join(PROJECT_ROOT, "projects", project_slug, "data")
     if os.path.exists(data_dir):
         for f in os.listdir(data_dir):
             if f.endswith(".csv") and ("screening" in f.lower() or "decisions" in f.lower()):
                 cand = os.path.join(data_dir, f)
+                if cand not in candidates:
+                    candidates.append(cand)
+
+    proj_dir = os.path.join(PROJECT_ROOT, "projects", project_slug)
+    if os.path.exists(proj_dir):
+        for f in os.listdir(proj_dir):
+            if f.endswith(".csv") and ("screening" in f.lower() or "decisions" in f.lower()):
+                cand = os.path.join(proj_dir, f)
                 if cand not in candidates:
                     candidates.append(cand)
 
@@ -104,7 +116,33 @@ def run_screener(csv_path: str, threshold: float = 0.10, out_dir: Optional[str] 
     title_col = next((c for c in cols if "cím" in c.lower() or "title" in c.lower()), None)
     abstract_col = next((c for c in cols if "absztrakt" in c.lower() or "abstract" in c.lower()), None)
 
-    if not decision_col or not title_col or not abstract_col:
+    if not abstract_col:
+        # Check if deduplicated_records.csv exists in same or parent directory to join abstract
+        csv_dir = os.path.dirname(csv_path)
+        dedup_cand = [
+            os.path.join(csv_dir, "deduplicated_records.csv"),
+            os.path.join(csv_dir, "literature", "deduplicated_records.csv"),
+            os.path.join(csv_dir, "..", "deduplicated_records.csv"),
+        ]
+        found_dedup = next((c for c in dedup_cand if os.path.exists(c)), None)
+        if found_dedup:
+            print(f"      [i] Absztrakt oszlop pótlása {os.path.basename(found_dedup)} állományból...")
+            df_dedup = pd.read_csv(found_dedup, encoding="utf-8-sig")
+            if "abstract" in df_dedup.columns and title_col in df.columns:
+                from src.deduplicate_exports import clean_title
+                df["_clean_t"] = df[title_col].apply(clean_title)
+                t_col_dedup = next((c for c in df_dedup.columns if "title" in c.lower()), "title")
+                df_dedup["_clean_t"] = df_dedup[t_col_dedup].apply(clean_title)
+                dedup_map = df_dedup.drop_duplicates("_clean_t").set_index("_clean_t")["abstract"].to_dict()
+                df["abstract"] = df["_clean_t"].map(dedup_map).fillna("")
+                df.drop(columns=["_clean_t"], inplace=True)
+                abstract_col = "abstract"
+        if not abstract_col:
+            print("      [!] Figyelem: 'abstract' oszlop nem található, kizárólag a cím szövege lesz használva.")
+            df["abstract"] = ""
+            abstract_col = "abstract"
+
+    if not decision_col or not title_col:
         raise ValueError(f"Nem sikerült azonosítani a kötelező oszlopokat! Talált oszlopok: {cols}")
 
     print(f"      Azonosított oszlopok: Döntés='{decision_col}', Cím='{title_col}', Absztrakt='{abstract_col}'")
@@ -207,6 +245,9 @@ def main():
             args = parser.parse_args()
     else:
         args = parser.parse_args()
+
+    if args.project and not args.output_dir:
+        args.output_dir = os.path.join(PROJECT_ROOT, "projects", args.project, "results")
 
     csv_path = args.input
     if not csv_path:

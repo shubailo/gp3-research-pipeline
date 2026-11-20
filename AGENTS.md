@@ -156,6 +156,7 @@ A kutatási tervek kidolgozása kötelezően az alábbi 5 fázison halad kereszt
 ### 3.5 Támogató Ágensek
 - **`orchestrator`:** Koordinálja az 5 fázis lefutását, érvényesíti az ágenshatárokat (Agent Boundary Enforcement: a `lit-reviewer` nem számol statisztikát, a `meta-analyzer` nem ír klinikai bevezetőt), és biztosítja a kontextus átadását a fázisok között.
 - **`documentation-writer`:** A Phase 5-ben összeállítja a végleges, 10 fejezetből álló `PROTOCOL.md` dokumentumot és a `data/wiki/resources/PROSPERO_REGISTRATION_GUIDE_v6.1.md` szerinti `PROSPERO_DRAFT.md` regisztrációs adatlapot, integrálva a korábbi fázisok számszerű adatait, mentori pontjait és szókratészi válaszait.
+  - **Kanonikus Írói Stílus Szabvány:** Köteles követni a [SHUBAIL_ACADEMIC_STYLE.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/rules/SHUBAIL_ACADEMIC_STYLE.md) stílusnormáit (T/1 szerzőségi alany, mechanisztikus élettani mélység, orvosi terminológiai pontosság, transzlációs fókusz, a Section 5 szerinti WP:AISIGNS lexikális anti-AI standard, valamint a Section 6 szerinti StoryScope COLM 2026 mély diszkurzív/strukturális torzítás-mentességi kódex: tilos a didaktikus moralizálás, a szomatikus túlírás, a mesterséges kauzalitás-simítás és a hermetikus ködösítés) mind magyar, mind nemzetközi angol nyelvű dokumentumokban és kéziratokban, miközben a CTM protokoll-struktúra és a mentori autonómia érintetlen marad.
 
 ---
 

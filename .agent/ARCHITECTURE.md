@@ -106,3 +106,4 @@ projects/<project_slug>/
 - **CTM Methodology Wiki:** [`data/wiki/methodology/INDEX.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/INDEX.md) (12 canonical chapters).
 - **PROSPERO v6.0/v6.1 Playbook:** [`05_protocol_and_prospero.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/methodology/05_protocol_and_prospero.md).
 - **Copy-Paste PROSPERO Form Template:** [`PROSPERO_REGISTRATION_TEMPLATE.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/data/wiki/templates/PROSPERO_REGISTRATION_TEMPLATE.md).
+- **Canonical Academic Writing & Anti-AI Standard:** [`SHUBAIL_ACADEMIC_STYLE.md`](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/rules/SHUBAIL_ACADEMIC_STYLE.md) and [`humanizer` skill](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/skills/humanizer/SKILL.md) (Wikipedia AI Cleanup + StoryScope COLM 2026).

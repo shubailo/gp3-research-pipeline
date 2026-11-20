@@ -184,6 +184,27 @@ When user's prompt is NOT in English:
 
 > 🔴 **Mandatory Socratic Mentor Review & Rekonciliáció:** A Phase 4-ben mindkét mentor egymástól független, zárolt pontozást végez (Hegyi 4D és Garami 4D), amelyet egy explicit Rekonciliációs Kör és a blokkoló Szókratészi Kérdések megválaszolása követ.
 
+### 🖋️ TUDOMÁNYOS ÍRÓI STÍLUS & SZERZŐSÉGI SZABVÁNY (Shubail Academic Writing Style)
+> **Kanonikus Hivatkozás:** [SHUBAIL_ACADEMIC_STYLE.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/rules/SHUBAIL_ACADEMIC_STYLE.md) (eredete: *Dékáni pályamunka - Shubail Abdulrahman, PTE ÁOK TMI - Termofiziológia / Dr. Garami András*)
+>
+> Minden kutatási dokumentum, elemzés, szakmai összefoglaló, kézirat és protokoll-szövegezés (magyar és nemzetközi angol nyelven egyaránt) KÖTELEZŐEN az alábbi stilisztikai elveket követi:
+> 1. **Szerzőségi Hangnem (T/1):** Célkitűzéseknél, módszertani lépéseknél, eredményeknél és diszkussziónál határozott, de mértéktartó többes szám első személy (*„Kutatásunkban…”, „Célul tűztük ki…”, „In our study, we investigated…”*), míg a standard objektív eljárásoknál szabatos személytelen/passzív formák (*„került bevonásra”, „were evaluated”*).
+> 2. **Élettani Mechanisztikus Mélység:** A megfigyelt statisztikai összefüggések mögött kötelező felderíteni és kifejteni az élettani/patofiziológiai hátteret (Sensor-Pathway-Effector szemlélet, termoeffektor rendszerek, molekuláris mechanizmusok, farmakológiai interakciók). Az anomáliákat fegyelmezett eliminációs diszkusszió oldja fel.
+> 3. **Terminológiai és Szintaktikai Szigor:** Pontos anatómiai, biokémiai és statisztikai nómenklatúra koherens, egymásba kapcsolódó mondatszerkezetekkel.
+> 4. **Transzlációs Fókusz:** A klinikai relevancia, az esendő betegpopuláció védelme és a terápiás/diagnosztikai haszon világos artikulálása.
+> 5. **Természetes, Emberi Szövegezés (Anti-AI Mandate / WP:AISIGNS):** Szövegeinkből szigorúan száműzzük az ismert AI-kliséket (tapestry, delve, testament, pivotal, beacon, em dash túltengés, negatív párhuzamok, hármas szabály kényszere, mondatvégi határozói igenév-farkak, üres befejező szimbolizmus és csevegő sallangok). Részletesen: [SHUBAIL_ACADEMIC_STYLE.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/rules/SHUBAIL_ACADEMIC_STYLE.md) Section 5.
+> 6. **Mély Diszkurzív & Strukturális AI-Torzítások Tilalma (StoryScope COLM 2026 Mandate):** Kéziratok és tudományos szövegezés során szigorúan tilos az AI 5 mély szerkezeti reflexének reprodukálása:
+>    - (a) *Didaktikus túlhatározottság & moralizáló tanulságok:* Tilos a diszkussziót prédikáló pátosszal lezárni; az adatok, konfidencia-intervallumok és élettani mechanizmusok beszélnek.
+>    - (b) *Viszcerális túlírás és melodrámázás:* A betegszenvedést tilos testi metaforákkal túlcifrázni; helyette egzakt epidemiológia (mortalitás %, DALY, neurológiai deficit skálák) használandó.
+>    - (c) *Mesterséges kauzalitás-simítás:* Tilos elsimítani a heterogenitást ($I^2$, $\tau^2$) vagy elhallgatni az ellentmondó másodlagos végpontokat/alcsoportokat; a tudomány dialektikus és számol az anomáliákkal.
+>    - (d) *Hamis epifániák és kényelmes zárások:* Tilos azt állítani, hogy minden kérdés megoldódott; kötelező a fennmaradó bizonytalanság, korlátok (QUIPS/RoB 2) és nyitott kérdések pontos rögzítése.
+>    - (e) *Hermetikus ködösítés:* Tilos a hivatkozások általánosító lebegtetése (*„számos vizsgálat igazolja”*); kötelező a konkrét szerző, év, kohorsz és PMID szerinti explicit intertextualitás. Részletesen: [SHUBAIL_ACADEMIC_STYLE.md](file:///c:/Users/shuba/Desktop/Researcher%20-%20D%C3%B3ri/.agent/rules/SHUBAIL_ACADEMIC_STYLE.md) Section 6.
+>
+> **Kivételek & Korlátok:**
+> - A CTM protokollok kötelező szerkezeti felépítése, fejezetei és linter-kapui (`src/validate_protocol.py`, PROSPERO v6.1) változatlanok maradnak.
+> - A mentorok (`mentor-hegyi`, `mentor-garami`) megőrzik sajátos bírálói stílusukat a `MENTORS.md` szerint.
+> - Az interaktív chat-üzenetekben az asszisztens a természetes, gyors egyeztető hangján kommunikál.
+
 ### 🛑 GLOBAL SOCRATIC GATE (TIER 0)
 
 **MANDATORY: Every user request must pass through the Socratic Gate before ANY tool use or implementation.**

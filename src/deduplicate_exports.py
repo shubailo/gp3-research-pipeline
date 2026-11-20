@@ -129,12 +129,12 @@ def parse_ris(file_path: Path, default_source: Optional[str] = None) -> List[Dic
         # Database source heuristic
         source = default_source
         if not source:
-            if "embase" in fname_lower or "DB  - Embase" in e or "embase.com" in e:
-                source = "Embase"
+            if "ctrecords" in fname_lower or "clinicaltrials" in fname_lower or "NCT0" in e:
+                source = "ClinicalTrials.gov"
             elif "cochrane" in fname_lower or "citation-export" in fname_lower or "Provider: John Wiley" in e or "CN-" in e:
                 source = "Cochrane Library"
-            elif "clinicaltrials" in fname_lower or "NCT0" in e:
-                source = "ClinicalTrials.gov"
+            elif "embase" in fname_lower or "DB  - Embase" in e or "embase.com" in e:
+                source = "Embase"
             elif "scopus" in fname_lower:
                 source = "Scopus"
             elif "wos" in fname_lower or "web of science" in fname_lower:
@@ -240,6 +240,16 @@ def execute_deduplication(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[
                     dup_counts["AuthorYear"] += 1
 
         if is_dup:
+            # Metadata enrichment: augment retained record with missing metadata from duplicate
+            if match_with:
+                for field in ["pmid", "doi", "journal", "abstract", "first_author", "year"]:
+                    if not match_with.get(field) and r.get(field):
+                        match_with[field] = r[field]
+                if match_with.get("pmid") and match_with["pmid"] not in seen_pmid:
+                    seen_pmid[match_with["pmid"]] = match_with
+                if match_with.get("doi") and match_with["doi"] not in seen_doi:
+                    seen_doi[match_with["doi"]] = match_with
+
             duplicates.append({
                 "duplicate": r,
                 "matched_with": match_with,
@@ -316,7 +326,8 @@ def generate_prisma_report(
     duplicates: List[Dict[str, Any]],
     unique_count: int,
     dup_counts: Dict[str, int],
-    out_path: Path
+    out_path: Path,
+    benchmark_audit: Optional[List[Dict[str, Any]]] = None
 ):
     """Generate CTM institutional markdown audit report with PRISMA 2020 numbers."""
     lines = [
@@ -373,15 +384,36 @@ def generate_prisma_report(
             }
         }, indent=2),
         "```",
-        "",
+        ""
+    ])
+
+    if benchmark_audit:
+        lines.extend([
+            "---",
+            "",
+            "## 4. Benchmark RCT Recovery Audit",
+            "",
+            "| Benchmark Study | PMID | Recovery Status | Primary Source |",
+            "|---|:---:|:---:|:---:|",
+        ])
+        for b in benchmark_audit:
+            status_badge = "✅ **100% RECOVERED**" if b["status"] == "RECOVERED" else "⚠️ UNMATCHED"
+            lines.append(f"| {b['title'][:65]}... | {b['pmid'] or 'N/A'} | {status_badge} | {b.get('source') or '—'} |")
+        lines.append("")
+
+    next_section_num = "5" if benchmark_audit else "4"
+    lines.extend([
         "---",
-        "## 4. Next Phase Action",
+        f"## {next_section_num}. Next Phase Action",
         "The deduplicated corpus has been prepared for Title & Abstract screening in **Phase 7**.",
         "Run the NLP and dual-screening engines via:",
         "```bash",
         "python src/run_pipeline.py screen-nlp <slug>",
         "```"
     ])
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(lines), encoding="utf-8")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines), encoding="utf-8")
@@ -459,6 +491,52 @@ def run_deduplication_pipeline(
     print(f"    - Removed by Author + Year:     {dup_counts['AuthorYear']:,}")
     print("-" * 72)
 
+    # Benchmark RCT Recovery Audit
+    benchmark_candidates = [
+        output_dir / "benchmarks.json",
+        input_dir / "benchmarks.json",
+        input_dir.parent / "benchmarks.json",
+    ]
+    if project_slug:
+        benchmark_candidates.append(WORKSPACE_ROOT / "projects" / project_slug / "benchmarks.json")
+
+    benchmark_file = next((c for c in benchmark_candidates if c.exists()), None)
+    benchmark_audit = []
+    if benchmark_file:
+        try:
+            b_list = json.loads(benchmark_file.read_text(encoding="utf-8"))
+            print("\n" + "=" * 72)
+            print("  BENCHMARK RCT RECOVERY AUDIT (Feasibility Poolability Verification)")
+            print("=" * 72)
+            for b in b_list:
+                b_pmid = str(b.get("pmid", "")).strip()
+                b_title = b.get("title", "").strip()
+                b_title_clean = clean_title(b_title)
+                matched = None
+                for u in unique_records:
+                    if b_pmid and u.get("pmid") == b_pmid:
+                        matched = u
+                        break
+                    if len(b_title_clean) >= 20 and b_title_clean[:40] in u.get("title_clean", ""):
+                        matched = u
+                        break
+                    if len(u.get("title_clean", "")) >= 20 and u.get("title_clean", "")[:40] in b_title_clean:
+                        matched = u
+                        break
+                status = "RECOVERED" if matched else "NOT_FOUND"
+                benchmark_audit.append({
+                    "pmid": b_pmid,
+                    "title": b_title,
+                    "status": status,
+                    "matched_record": matched.get("title") if matched else None,
+                    "source": matched.get("source") if matched else None
+                })
+                icon = "✅" if matched else "⚠️"
+                print(f"  {icon} [{status}] PMID: {b_pmid or 'N/A':<9} - {b_title[:55]}... ({matched.get('source') if matched else 'None'})")
+            print("=" * 72)
+        except Exception as exc:
+            print(f"[!] Warning reading benchmark file {benchmark_file}: {exc}")
+
     # Export outputs
     output_dir.mkdir(parents=True, exist_ok=True)
     csv_out = output_dir / "deduplicated_records.csv"
@@ -472,7 +550,7 @@ def run_deduplication_pipeline(
     export_ris(unique_records, ris_out)
     print(f"[+] Exported Rayyan-ready RIS:   {ris_out}")
 
-    generate_prisma_report(db_counts, total_raw, duplicates, unique_count, dup_counts, report_out)
+    generate_prisma_report(db_counts, total_raw, duplicates, unique_count, dup_counts, report_out, benchmark_audit=benchmark_audit)
     print(f"[+] Generated PRISMA Report:    {report_out}")
 
     # Export JSON flow numbers
@@ -483,7 +561,11 @@ def run_deduplication_pipeline(
         "database_counts": db_counts,
         "duplicates_removed": dup_count,
         "duplicates_by_strategy": dup_counts,
-        "unique_records": unique_count
+        "unique_records": unique_count,
+        "benchmark_recovery": {
+            "total_benchmarks": len(benchmark_audit),
+            "recovered": sum(1 for b in benchmark_audit if b["status"] == "RECOVERED")
+        } if benchmark_audit else {}
     }
     json_out.write_text(json.dumps(flow_data, indent=2), encoding="utf-8")
     print(f"[+] Exported PRISMA Flow JSON:  {json_out}")
@@ -501,10 +583,23 @@ def main():
 
     if args.project:
         p_dir = WORKSPACE_ROOT / "projects" / args.project
-        input_dir = p_dir / "literature" / "exports"
-        if not input_dir.exists():
+        if args.input_dir:
+            input_dir = Path(args.input_dir)
+        elif (p_dir / "literature" / "exports").exists():
+            input_dir = p_dir / "literature" / "exports"
+        elif (p_dir / "prewarming_2026").exists():
+            input_dir = p_dir / "prewarming_2026"
+        elif (p_dir / "literature").exists():
             input_dir = p_dir / "literature"
-        output_dir = p_dir / "literature"
+        else:
+            input_dir = p_dir
+
+        if args.output_dir:
+            output_dir = Path(args.output_dir)
+        elif (p_dir / "literature").exists():
+            output_dir = p_dir / "literature"
+        else:
+            output_dir = p_dir
     else:
         if not args.input_dir:
             print("[-] Error: Specify either --project <slug> or --input-dir <path>")

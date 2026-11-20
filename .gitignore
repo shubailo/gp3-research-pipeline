@@ -17,6 +17,7 @@ garami_chroma/
 .agent/archive/
 archive/
 ECC-source/
+tools/
 
 # Sensitive intermediate review data
 data/reviews/*.json
@@ -98,6 +99,7 @@ data/garami.andras_142_23_doktori_mu.pdf
 garami_publications/
 hegyi_publications/
 TM/
+Dékáni pályamunka*
 
 # 10. Projekt-specifikus szkriptek (A projekt-specifikus kódok helye: projects/<slug>/scripts/)
 src/run_search.py

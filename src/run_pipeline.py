@@ -195,7 +195,7 @@ def main():
     parser_val_prospero.add_argument("target", nargs="?", help="Path to PROSPERO draft markdown or project slug")
 
     # Command: deduplicate / dedup
-    parser_dedup = subparsers.add_parser("deduplicate", help="Phase 6: Multi-database search deduplication and PRISMA 2020 calculation")
+    parser_dedup = subparsers.add_parser("deduplicate", aliases=["dedup"], help="Phase 6: Multi-database search deduplication and PRISMA 2020 calculation")
     parser_dedup.add_argument("slug", help="Project slug in projects/<slug>")
     parser_dedup.add_argument("--input-dir", "-i", help="Custom input directory with .ris/.nbib files")
     parser_dedup.add_argument("--output-dir", "-o", help="Custom output directory")
@@ -232,7 +232,7 @@ def main():
             else:
                 v_args.extend(["--file", args.target])
         return forward_to_script("validate_prospero_draft.py", v_args + unknown)
-    elif args.command == "deduplicate":
+    elif args.command in ("deduplicate", "dedup"):
         d_args = ["--project", args.slug]
         if args.input_dir:
             d_args.extend(["--input-dir", args.input_dir])
